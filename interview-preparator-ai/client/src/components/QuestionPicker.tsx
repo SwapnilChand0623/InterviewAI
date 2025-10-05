@@ -61,11 +61,11 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
               onChange={(e) => setDuration(Number(e.target.value))}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
-              <option value={60}>1 minute</option>
-              <option value={120}>2 minutes</option>
-              <option value={180}>3 minutes</option>
-              <option value={240}>4 minutes</option>
+              <option value={180}>3 minute</option>
               <option value={300}>5 minutes</option>
+              <option value={600}>10 minutes</option>
+              <option value={900}>15 minutes</option>
+              <option value={1800}>30 minutes</option>
             </select>
           </div>
 
