@@ -1,8 +1,8 @@
 /**
- * Session page - Active interview recording
+ * Session page - Active interview recording with auto-end detection
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/features/state/store';
 import { useCapture } from '@/features/capture/useCapture';
@@ -12,20 +12,44 @@ import { CameraPreview } from '@/components/CameraPreview';
 import { LandmarkOverlay } from '@/components/LandmarkOverlay';
 import { Timer } from '@/components/Timer';
 import { RecorderControls } from '@/components/RecorderControls';
+import { Toast } from '@/components/Toast';
 
 export function Session() {
   const navigate = useNavigate();
-  const { session, endSession, computeMetrics } = useStore();
+  const { 
+    session, 
+    settings,
+    finalizeAnswerAndScore, 
+    goToNextQuestion,
+    skipQuestion,
+  } = useStore();
   const [isRecording, setIsRecording] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
 
   // Hooks
   const [captureState, captureControls] = useCapture();
+  const [faceMeshState, faceMeshControls] = useFaceMesh();
+  
+  // Store handleStop ref to avoid circular dependency
+  const handleStopRef = useRef<(() => Promise<void>) | null>(null);
+
+  // Auto-end handler
+  const handleAutoEnd = useCallback(() => {
+    if (isRecording && handleStopRef.current) {
+      handleStopRef.current();
+    }
+  }, [isRecording]);
+
   const [speechState, speechControls] = useSpeech({
     continuous: true,
     interimResults: true,
+    onAutoEnd: handleAutoEnd,
+    minSpeakMs: settings.minSpeakMs,
+    silenceMs: settings.silenceMs,
   });
-  const [faceMeshState, faceMeshControls] = useFaceMesh();
 
   // Redirect if no question selected
   useEffect(() => {
@@ -33,6 +57,13 @@ export function Session() {
       navigate('/');
     }
   }, [session.question, navigate]);
+
+  // Navigate to report when session is finished
+  useEffect(() => {
+    if (session.status === 'finished') {
+      navigate('/report');
+    }
+  }, [session.status, navigate]);
 
   // Start capture on mount
   useEffect(() => {
@@ -42,22 +73,27 @@ export function Session() {
       captureControls.stopCapture();
       speechControls.stopListening();
       faceMeshControls.stopTracking();
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleStart = async () => {
+  const handleStart = useCallback(() => {
     setIsRecording(true);
     setStartTime(Date.now());
     
     speechControls.startListening();
-  };
+  }, [speechControls]);
 
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     setIsRecording(false);
+    setIsProcessing(true);
     
+    // Cancel any pending auto-end
+    speechControls.cancelAutoEnd();
     speechControls.stopListening();
-    faceMeshControls.stopTracking();
-    captureControls.stopCapture();
 
     // Calculate duration
     const duration = startTime ? (Date.now() - startTime) / 1000 : session.duration;
@@ -65,24 +101,90 @@ export function Session() {
     // Get metrics
     const { headVariance, gazeDrift } = faceMeshControls.getMetrics();
 
-    // Compute final metrics
-    await computeMetrics(
+    // Finalize and score (includes relevance)
+    await finalizeAnswerAndScore(
       speechState.transcript,
       duration,
       headVariance,
       gazeDrift
     );
 
-    endSession();
-    navigate('/report');
-  };
+    setIsProcessing(false);
 
-  const handleVideoReady = (videoElement: HTMLVideoElement) => {
+    // Check if session finished (don't auto-advance if on last question)
+    const store = useStore.getState();
+    if (store.session.status === 'finished') {
+      // Will navigate to report via useEffect
+      return;
+    }
+
+    // Show toast and auto-advance
+    if (settings.autoAdvance) {
+      setShowToast(true);
+      autoAdvanceTimerRef.current = window.setTimeout(() => {
+        goToNextQuestion();
+        setShowToast(false);
+      }, settings.autoAdvanceDelayMs);
+    }
+  }, [
+    startTime,
+    session.duration,
+    speechState.transcript,
+    speechControls,
+    faceMeshControls,
+    finalizeAnswerAndScore,
+    settings.autoAdvance,
+    settings.autoAdvanceDelayMs,
+    goToNextQuestion,
+  ]);
+
+  // Update ref when handleStop changes
+  useEffect(() => {
+    handleStopRef.current = handleStop;
+  }, [handleStop]);
+
+  const handleSkip = useCallback(() => {
+    // Clear auto-advance timer if running
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    // Cancel any pending auto-end detection
+    speechControls.cancelAutoEnd();
+
+    // If recording, stop speech (but keep camera on)
+    if (isRecording) {
+      setIsRecording(false);
+      speechControls.stopListening();
+      // DON'T stop face tracking - let it continue for next question
+    }
+
+    // Skip to next question (camera stays on)
+    skipQuestion();
+    setShowToast(false);
+
+    // Show brief toast
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 1000);
+  }, [isRecording, speechControls, skipQuestion]);
+
+  const handleCancelAutoAdvance = useCallback(() => {
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+    setShowToast(false);
+    // Navigate to report instead
+    navigate('/report');
+  }, [navigate]);
+
+  const handleVideoReady = useCallback((videoElement: HTMLVideoElement) => {
     // Start face tracking when video is ready
     if (faceMeshState.isInitialized) {
       faceMeshControls.startTracking(videoElement);
     }
-  };
+  }, [faceMeshState.isInitialized, faceMeshControls]);
 
   if (!session.question) {
     return null;
@@ -187,16 +289,28 @@ export function Session() {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <RecorderControls
                 isRecording={isRecording}
-                isDisabled={!captureState.isCapturing}
+                isDisabled={!captureState.isCapturing || isProcessing}
                 onStart={handleStart}
                 onStop={handleStop}
+                onSkip={handleSkip}
               />
+
+              {isProcessing && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-blue-900 font-medium">
+                      Analyzing your answer...
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-900">
-                  <span className="font-semibold">Tip:</span> Take a moment to think,
-                  then click "Start Recording" when you're ready to answer. Use the STAR
-                  framework to structure your response.
+                  <span className="font-semibold">Tip:</span> Answer will auto-end after{' '}
+                  {settings.silenceMs / 1000}s of silence (minimum {settings.minSpeakMs / 1000}s speaking).
+                  Use STAR framework. Press N to skip anytime.
                 </p>
               </div>
             </div>
@@ -220,6 +334,21 @@ export function Session() {
             )}
           </div>
         </div>
+
+        {/* Auto-advance toast or skip toast */}
+        {showToast && isProcessing && (
+          <Toast
+            message="Analyzing your answer..."
+            type="info"
+          />
+        )}
+        {showToast && !isProcessing && settings.autoAdvance && (
+          <Toast
+            message={`Advancing to next question in ${settings.autoAdvanceDelayMs / 1000}s...`}
+            type="success"
+            onCancel={handleCancelAutoAdvance}
+          />
+        )}
       </div>
     </div>
   );

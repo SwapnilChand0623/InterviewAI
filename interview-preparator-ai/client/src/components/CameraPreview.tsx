@@ -18,23 +18,51 @@ export function CameraPreview({
   className = '',
 }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasCalledReadyRef = useRef(false);
+  const onVideoReadyRef = useRef(onVideoReady);
+
+  // Keep ref up to date
+  useEffect(() => {
+    onVideoReadyRef.current = onVideoReady;
+  }, [onVideoReady]);
 
   useEffect(() => {
     if (!videoRef.current) return;
 
     if (stream && isActive) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch((err) => {
+      const video = videoRef.current;
+      
+      // Set stream
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+
+      // Play video
+      video.play().catch((err) => {
         console.error('Failed to play video:', err);
       });
 
-      if (onVideoReady) {
-        onVideoReady(videoRef.current);
+      // Call onVideoReady only once when video is truly ready
+      if (!hasCalledReadyRef.current && onVideoReadyRef.current) {
+        const handleLoadedMetadata = () => {
+          if (onVideoReadyRef.current && !hasCalledReadyRef.current) {
+            hasCalledReadyRef.current = true;
+            onVideoReadyRef.current(video);
+          }
+        };
+
+        if (video.readyState >= 2) {
+          // Video already loaded
+          handleLoadedMetadata();
+        } else {
+          video.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+        }
       }
     } else {
       videoRef.current.srcObject = null;
+      hasCalledReadyRef.current = false;
     }
-  }, [stream, isActive, onVideoReady]);
+  }, [stream, isActive]);
 
   return (
     <div className={`relative bg-gray-900 rounded-lg overflow-hidden ${className}`}>

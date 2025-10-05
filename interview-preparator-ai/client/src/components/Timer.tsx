@@ -2,7 +2,7 @@
  * Countdown timer component
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { formatTime } from '@/lib/utils';
 
 interface TimerProps {
@@ -14,6 +14,14 @@ interface TimerProps {
 
 export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
   const [remaining, setRemaining] = useState(duration);
+  const onTickRef = useRef(onTick);
+  const onCompleteRef = useRef(onComplete);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onTickRef.current = onTick;
+    onCompleteRef.current = onComplete;
+  }, [onTick, onComplete]);
 
   useEffect(() => {
     setRemaining(duration);
@@ -26,14 +34,13 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
       setRemaining((prev) => {
         const next = prev - 1;
         
-        if (onTick) {
-          onTick(next);
+        if (onTickRef.current) {
+          onTickRef.current(next);
         }
 
         if (next <= 0) {
-          clearInterval(interval);
-          if (onComplete) {
-            onComplete();
+          if (onCompleteRef.current) {
+            onCompleteRef.current();
           }
           return 0;
         }
@@ -43,7 +50,7 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning, onTick, onComplete]);
+  }, [isRunning]);
 
   const percentage = (remaining / duration) * 100;
   const isLowTime = remaining <= 30;

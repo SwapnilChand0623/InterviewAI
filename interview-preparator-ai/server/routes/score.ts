@@ -9,37 +9,47 @@ const router = express.Router();
 /**
  * POST /api/score
  * 
- * Accepts transcript, role, and skill, returns server-side analysis
+ * Accepts transcript, role, skill, question - returns relevance analysis
  * 
- * This is a STUB for future enhancements like:
- * - LLM-based evaluation
- * - More sophisticated STAR detection
- * - Role-specific feedback
+ * Expected request body:
+ * {
+ *   transcript: string,
+ *   role: string,
+ *   skill: string,
+ *   question: string
+ * }
+ * 
+ * Returns RelevanceResult format:
+ * {
+ *   score: number (0-100),
+ *   verdict: 'on_topic' | 'partially_on_topic' | 'off_topic',
+ *   reasons: string[],
+ *   matchedKeywords: string[],
+ *   missingKeywords: string[]
+ * }
  */
 router.post('/', async (req, res) => {
   try {
-    const { transcript, role, skill } = req.body;
+    const { transcript, role, skill, question } = req.body;
 
     if (!transcript) {
       return res.status(400).json({ error: 'Transcript is required' });
     }
 
-    // STUB: Return mock scores
-    const mockScores = {
-      overall: 75,
-      star: {
-        S: 70,
-        T: 75,
-        A: 80,
-        R: 75,
-      },
-      suggestions: [
-        'Good structure overall. Consider adding more specific metrics in the Result section.',
-        'Try to use more concrete examples when describing your actions.',
+    // STUB: Return mock relevance scores
+    const mockRelevance = {
+      score: 75,
+      verdict: 'on_topic',
+      reasons: [
+        'Good coverage of key technical concepts.',
+        'Answer addresses the question directly.',
+        'Consider adding more specific examples.',
       ],
+      matchedKeywords: ['react', 'state', 'component', 'hooks', 'useEffect'],
+      missingKeywords: ['performance', 'optimization', 'testing'],
     };
 
-    res.json(mockScores);
+    res.json(mockRelevance);
 
     // TODO: Real implementation with LLM or advanced NLP
     /*

@@ -8,6 +8,10 @@ A browser-based mock interview coach that provides instant feedback on your deli
 - **Speech Recognition**: Transcribes your answers in real-time using the Web Speech API
 - **STAR Framework Analysis**: Evaluates answer structure (Situation, Task, Action, Result)
 - **Speaking Metrics**: Measures pace (WPM), filler words, and provides actionable feedback
+- **🆕 Answer Relevance Scoring**: AI-powered keyword analysis determines if your answer is on-topic (0-100 score)
+- **🆕 Auto-End Detection**: Intelligent silence detection and wrap-up phrase recognition
+- **🆕 Auto-Advance to Next Question**: Seamlessly practice multiple questions with configurable auto-advance
+- **🆕 Keyboard Shortcuts**: Space to start/stop, N to skip/next question
 - **Instant Reports**: Get comprehensive feedback immediately after each practice session
 - **Export Results**: Download your session data as JSON or CSV
 

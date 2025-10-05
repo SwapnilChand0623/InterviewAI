@@ -1,5 +1,5 @@
 /**
- * Hook for Web Speech Recognition API
+ * Hook for Web Speech Recognition API with auto-end detection
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -17,6 +17,7 @@ export interface SpeechControls {
   startListening: () => void;
   stopListening: () => void;
   resetTranscript: () => void;
+  cancelAutoEnd: () => void;
 }
 
 interface UseSpeechOptions {
@@ -24,6 +25,35 @@ interface UseSpeechOptions {
   continuous?: boolean;
   interimResults?: boolean;
   onTranscriptUpdate?: (transcript: string) => void;
+  onAutoEnd?: () => void;
+  onPartialUpdate?: (text: string) => void;
+  minSpeakMs?: number; // Minimum speech duration before silence can trigger end (default: 8000)
+  silenceMs?: number;   // Silence duration to trigger auto-end (default: 3200)
+}
+
+/**
+ * Wrap-up phrases that indicate answer is ending
+ */
+const WRAPUP_PHRASES = [
+  'in summary',
+  'to summarize',
+  "that's all",
+  "that's it",
+  'in conclusion',
+  'to conclude',
+  'finally',
+  'so yeah',
+  'and yeah',
+  'so that is',
+  'so that was',
+];
+
+/**
+ * Detect if text ends with a wrap-up phrase
+ */
+function detectWrapUpPhrase(text: string): boolean {
+  const lowerText = text.toLowerCase().trim();
+  return WRAPUP_PHRASES.some(phrase => lowerText.includes(phrase));
 }
 
 /**
@@ -35,6 +65,10 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
     continuous = true,
     interimResults = true,
     onTranscriptUpdate,
+    onAutoEnd,
+    onPartialUpdate,
+    minSpeakMs = 8000,
+    silenceMs = 3200,
   } = options;
 
   const SpeechRecognitionClass = getSpeechRecognition();
@@ -48,8 +82,22 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
     error: null,
   });
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef<string>('');
+  const lastWordTimeRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(0);
+  const silenceTimerRef = useRef<number | null>(null);
+  const wrapUpTimerRef = useRef<number | null>(null);
+  const onAutoEndRef = useRef(onAutoEnd);
+  const onPartialUpdateRef = useRef(onPartialUpdate);
+  const lastAutoEndAttemptRef = useRef<number>(0);
+  const manualActionTimeRef = useRef<number>(0);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onAutoEndRef.current = onAutoEnd;
+    onPartialUpdateRef.current = onPartialUpdate;
+  }, [onAutoEnd, onPartialUpdate]);
 
   // Initialize recognition
   useEffect(() => {
@@ -62,13 +110,21 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
 
     recognition.onstart = () => {
       setState((prev) => ({ ...prev, isListening: true, error: null }));
+      startTimeRef.current = Date.now();
+      lastWordTimeRef.current = Date.now();
     };
 
     recognition.onend = () => {
       setState((prev) => ({ ...prev, isListening: false }));
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (wrapUpTimerRef.current) {
+        clearTimeout(wrapUpTimerRef.current);
+      }
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: any) => {
       let errorMessage = 'Speech recognition error';
       
       if (event.error === 'no-speech') {
@@ -86,7 +142,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       }));
     };
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let finalTranscript = finalTranscriptRef.current;
 
@@ -96,6 +152,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
 
         if (result.isFinal) {
           finalTranscript += transcriptPiece + ' ';
+          lastWordTimeRef.current = Date.now(); // Update on final results
         } else {
           interimTranscript += transcriptPiece;
         }
@@ -112,6 +169,62 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       if (onTranscriptUpdate) {
         onTranscriptUpdate(finalTranscript.trim());
       }
+
+      if (onPartialUpdateRef.current) {
+        onPartialUpdateRef.current(finalTranscript.trim() + ' ' + interimTranscript);
+      }
+
+      // Clear existing timers
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (wrapUpTimerRef.current) {
+        clearTimeout(wrapUpTimerRef.current);
+      }
+
+      // Check for wrap-up phrases
+      const fullText = (finalTranscript + ' ' + interimTranscript).trim();
+      if (detectWrapUpPhrase(fullText)) {
+        // Arm wrap-up timer (shorter timeout)
+        wrapUpTimerRef.current = window.setTimeout(() => {
+          const elapsed = Date.now() - startTimeRef.current;
+          const now = Date.now();
+          const timeSinceManualAction = now - manualActionTimeRef.current;
+          const timeSinceLastAutoEnd = now - lastAutoEndAttemptRef.current;
+          
+          // Debounce: only fire if 2.5s since last attempt and 500ms since manual action
+          if (
+            elapsed >= minSpeakMs &&
+            timeSinceManualAction >= 500 &&
+            timeSinceLastAutoEnd >= 2500 &&
+            onAutoEndRef.current
+          ) {
+            lastAutoEndAttemptRef.current = now;
+            onAutoEndRef.current();
+          }
+        }, 1200); // Slightly longer for wrap-up
+      } else {
+        // Normal silence detection
+        silenceTimerRef.current = window.setTimeout(() => {
+          const elapsed = Date.now() - startTimeRef.current;
+          const timeSinceLastWord = Date.now() - lastWordTimeRef.current;
+          const now = Date.now();
+          const timeSinceManualAction = now - manualActionTimeRef.current;
+          const timeSinceLastAutoEnd = now - lastAutoEndAttemptRef.current;
+          
+          // Debounce: only fire if 2.5s since last attempt and 500ms since manual action
+          if (
+            elapsed >= minSpeakMs &&
+            timeSinceLastWord >= silenceMs &&
+            timeSinceManualAction >= 500 &&
+            timeSinceLastAutoEnd >= 2500 &&
+            onAutoEndRef.current
+          ) {
+            lastAutoEndAttemptRef.current = now;
+            onAutoEndRef.current();
+          }
+        }, silenceMs);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -120,8 +233,14 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (wrapUpTimerRef.current) {
+        clearTimeout(wrapUpTimerRef.current);
+      }
     };
-  }, [SpeechRecognitionClass, continuous, interimResults, language, onTranscriptUpdate]);
+  }, [SpeechRecognitionClass, continuous, interimResults, language, onTranscriptUpdate, minSpeakMs, silenceMs]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current) {
@@ -144,6 +263,8 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
+    // Mark manual action to prevent auto-end
+    manualActionTimeRef.current = Date.now();
   }, []);
 
   const resetTranscript = useCallback(() => {
@@ -153,6 +274,21 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       transcript: '',
       interimTranscript: '',
     }));
+    // Mark manual action
+    manualActionTimeRef.current = Date.now();
+  }, []);
+  
+  // Expose method to cancel auto-end (for skip/manual actions)
+  const cancelAutoEnd = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (wrapUpTimerRef.current) {
+      clearTimeout(wrapUpTimerRef.current);
+      wrapUpTimerRef.current = null;
+    }
+    manualActionTimeRef.current = Date.now();
   }, []);
 
   return [
@@ -161,6 +297,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       startListening,
       stopListening,
       resetTranscript,
+      cancelAutoEnd,
     },
   ];
 }
