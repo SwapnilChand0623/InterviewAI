@@ -103,14 +103,14 @@ export function Report() {
   const overallStarScore = getOverallStarScore(currentMetrics.starScores);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
             Interview Session Report
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-slate-400">
             {results.role} • {results.questions.length} question{results.questions.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -123,8 +123,8 @@ export function Report() {
         )}
 
         {/* Question Navigation */}
-        <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="mb-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">
             Question Details
           </h2>
           <QuestionPager
@@ -136,35 +136,35 @@ export function Report() {
         </div>
 
         {/* Current Question Title with Grade */}
-        <div className="mb-6 bg-white rounded-lg shadow-sm p-6">
+        <div className="mb-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-2">
                 Question {ui.reportCurrentIndex + 1}
                 {currentMetrics.status === 'skipped' && (
-                  <span className="ml-3 px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
+                  <span className="ml-3 px-3 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-sm rounded-full">
                     Skipped
                   </span>
                 )}
               </h2>
-              <p className="text-gray-700">{currentQuestion.question}</p>
+              <p className="text-gray-700 dark:text-slate-300">{currentQuestion.question}</p>
             </div>
             {/* Individual Question Grade Badge */}
             {currentMetrics.status !== 'skipped' && currentQuestion.grade && (
               <div className="ml-6 flex flex-col items-center justify-center min-w-[120px]">
                 <div className={`text-5xl font-bold mb-1 ${
-                  currentQuestion.grade === 'A' ? 'text-green-600' :
-                  currentQuestion.grade === 'B' ? 'text-blue-600' :
-                  currentQuestion.grade === 'C' ? 'text-yellow-600' :
-                  currentQuestion.grade === 'D' ? 'text-orange-600' :
-                  'text-red-600'
+                  currentQuestion.grade === 'A' ? 'text-green-600 dark:text-green-400' :
+                  currentQuestion.grade === 'B' ? 'text-blue-600 dark:text-blue-400' :
+                  currentQuestion.grade === 'C' ? 'text-yellow-600 dark:text-yellow-400' :
+                  currentQuestion.grade === 'D' ? 'text-orange-600 dark:text-orange-400' :
+                  'text-red-600 dark:text-red-400'
                 }`}>
                   {currentQuestion.grade}
                 </div>
-                <div className="text-sm text-gray-600 font-medium">
+                <div className="text-sm text-gray-600 dark:text-slate-400 font-medium">
                   {currentQuestion.overallScore}/100
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 dark:text-slate-500 mt-1">
                   Question Grade
                 </div>
               </div>
@@ -253,21 +253,21 @@ export function Report() {
             {/* Detailed Analysis */}
             <div className="grid lg:grid-cols-2 gap-8 mb-8">
               {/* STAR Breakdown */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
                 <StarBars scores={currentMetrics.starScores} />
               </div>
 
               {/* Transcript */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">
                   Transcript
                 </h3>
                 {currentQuestion.transcript ? (
-                  <div className="text-sm text-gray-700 max-h-64 overflow-y-auto">
+                  <div className="text-sm text-gray-700 dark:text-slate-300 max-h-64 overflow-y-auto">
                     {currentQuestion.transcript}
                   </div>
                 ) : (
-                  <p className="text-gray-500 italic">
+                  <p className="text-gray-500 dark:text-slate-400 italic">
                     No transcript available.
                   </p>
                 )}
@@ -280,8 +280,8 @@ export function Report() {
             )}
           </>
         ) : (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-            <p className="text-yellow-800">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-6 mb-8">
+            <p className="text-yellow-800 dark:text-yellow-200">
               This question was skipped. No metrics available.
             </p>
           </div>
@@ -291,21 +291,21 @@ export function Report() {
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleDownloadJSON}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
           >
             Export All (JSON)
           </button>
 
           <button
             onClick={handleDownloadCSV}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="px-6 py-3 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
           >
             Export All (CSV)
           </button>
 
           <button
             onClick={handleNewSession}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors ml-auto"
+            className="px-6 py-3 bg-gray-600 dark:bg-slate-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-slate-600 transition-colors ml-auto"
           >
             New Session
           </button>

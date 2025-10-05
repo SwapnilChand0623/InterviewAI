@@ -211,14 +211,14 @@ export function Session() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
             Mock Interview Session
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-slate-400">
             Role: {session.role?.replace('_', ' ').toUpperCase()}
           </p>
         </div>
@@ -226,8 +226,8 @@ export function Session() {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Left Column: Video */}
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">
                 Camera Preview
               </h2>
               
@@ -250,33 +250,33 @@ export function Session() {
               </div>
 
               {captureState.error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-200">
                   {captureState.error}
                 </div>
               )}
 
               {speechState.error && !speechState.isSupported && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+                <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-700 dark:text-yellow-200">
                   Speech recognition unavailable. Transcript will not be captured.
                 </div>
               )}
             </div>
 
             {/* Live Metrics */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4">
                 Live Metrics
               </h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-600">Attention Score</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-gray-600 dark:text-slate-400">Attention Score</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     {Math.round(faceMeshState.attentionScore)}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Words Spoken</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-gray-600 dark:text-slate-400">Words Spoken</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     {speechState.transcript.split(/\s+/).filter(w => w).length}
                   </p>
                 </div>
@@ -287,17 +287,17 @@ export function Session() {
           {/* Right Column: Question & Controls */}
           <div className="space-y-6">
             {/* Question */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-sm font-medium text-gray-500 mb-2">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+              <h2 className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">
                 Your Question
               </h2>
-              <p className="text-xl font-medium text-gray-900">
+              <p className="text-xl font-medium text-gray-900 dark:text-slate-100">
                 {session.question.q}
               </p>
             </div>
 
             {/* Timer */}
-            <div className="bg-white rounded-lg shadow-sm p-6 flex justify-center">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6 flex justify-center">
               <Timer
                 duration={session.duration}
                 isRunning={isRecording}
@@ -306,7 +306,7 @@ export function Session() {
             </div>
 
             {/* Controls */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
               <RecorderControls
                 isRecording={isRecording}
                 isDisabled={!captureState.isCapturing || isProcessing}
@@ -316,18 +316,18 @@ export function Session() {
               />
 
               {isProcessing && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm text-blue-900 font-medium">
+                    <div className="w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-blue-900 dark:text-blue-100 font-medium">
                       Analyzing your answer...
                     </span>
                   </div>
                 </div>
               )}
 
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-900">
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
                   <span className="font-semibold">Tip:</span> Answer will auto-end after{' '}
                   {settings.silenceMs / 1000}s of silence (minimum {settings.minSpeakMs / 1000}s speaking).
                   Use STAR framework. Press N to skip anytime.
@@ -337,14 +337,14 @@ export function Session() {
 
             {/* Live Transcript */}
             {speechState.isSupported && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">
                   Live Transcript
                 </h3>
-                <div className="bg-gray-50 rounded p-4 max-h-60 overflow-y-auto">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                <div className="bg-gray-50 dark:bg-slate-900 rounded-lg p-4 max-h-60 overflow-y-auto">
+                  <p className="text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap">
                     {speechState.transcript || speechState.interimTranscript || (
-                      <span className="text-gray-400 italic">
+                      <span className="text-gray-400 dark:text-slate-500 italic">
                         Transcript will appear here as you speak...
                       </span>
                     )}
