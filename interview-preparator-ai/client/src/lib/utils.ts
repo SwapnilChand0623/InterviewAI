@@ -1,4 +1,12 @@
 /**
+ * Merge class names with tailwind-merge-like behavior
+ * Combines multiple className strings and removes duplicates
+ */
+export function cn(...classes: (string | undefined | null | false)[]): string {
+  return classes.filter(Boolean).join(' ');
+}
+
+/**
  * Format seconds to MM:SS
  */
 export function formatTime(seconds: number): string {

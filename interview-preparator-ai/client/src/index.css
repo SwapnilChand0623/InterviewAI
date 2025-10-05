@@ -7,14 +7,64 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light;
-  color: rgba(0, 0, 0, 0.87);
-  background-color: #ffffff;
-
+  color-scheme: light dark;
+  
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* Light mode colors */
+  --color-primary: 14 165 233;
+  --color-primary-hover: 2 132 199;
+  --color-secondary: 99 102 241;
+  --color-accent: 139 92 246;
+  
+  --color-background: 255 255 255;
+  --color-background-alt: 249 250 251;
+  
+  --color-surface: 255 255 255;
+  --color-surface-hover: 249 250 251;
+  
+  --color-border: 229 231 235;
+  --color-border-hover: 209 213 219;
+  
+  --color-text: 17 24 39;
+  --color-text-secondary: 75 85 99;
+  --color-text-muted: 107 114 128;
+  
+  --color-success: 16 185 129;
+  --color-warning: 245 158 11;
+  --color-error: 239 68 68;
+  --color-info: 59 130 246;
+}
+
+.dark {
+  color-scheme: dark;
+  
+  /* Dark mode colors */
+  --color-primary: 56 189 248;
+  --color-primary-hover: 14 165 233;
+  --color-secondary: 129 140 248;
+  --color-accent: 167 139 250;
+  
+  --color-background: 15 23 42;
+  --color-background-alt: 30 41 59;
+  
+  --color-surface: 30 41 59;
+  --color-surface-hover: 51 65 85;
+  
+  --color-border: 51 65 85;
+  --color-border-hover: 71 85 105;
+  
+  --color-text: 241 245 249;
+  --color-text-secondary: 203 213 225;
+  --color-text-muted: 148 163 184;
+  
+  --color-success: 34 197 94;
+  --color-warning: 251 191 36;
+  --color-error: 248 113 113;
+  --color-info: 96 165 250;
 }
 
 * {
@@ -24,6 +74,9 @@
 body {
   margin: 0;
   min-height: 100vh;
+  background-color: rgb(var(--color-background));
+  color: rgb(var(--color-text));
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
@@ -45,3 +98,4 @@ body {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
