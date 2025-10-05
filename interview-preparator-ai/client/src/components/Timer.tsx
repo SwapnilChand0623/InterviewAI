@@ -8,11 +8,12 @@ import { formatTime } from '@/lib/utils';
 interface TimerProps {
   duration: number; // Total duration in seconds
   isRunning: boolean;
+  isPaused?: boolean; // New: support external pause
   onTick?: (remaining: number) => void;
   onComplete?: () => void;
 }
 
-export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
+export function Timer({ duration, isRunning, isPaused = false, onTick, onComplete }: TimerProps) {
   const [remaining, setRemaining] = useState(duration);
   const onTickRef = useRef(onTick);
   const onCompleteRef = useRef(onComplete);
@@ -28,7 +29,8 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
   }, [duration]);
 
   useEffect(() => {
-    if (!isRunning) return;
+    // Don't tick if not running OR if paused
+    if (!isRunning || isPaused) return;
 
     const interval = setInterval(() => {
       setRemaining((prev) => {
@@ -50,7 +52,7 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, isPaused]);
 
   const percentage = (remaining / duration) * 100;
   const isLowTime = remaining <= 30;

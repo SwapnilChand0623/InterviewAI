@@ -65,6 +65,13 @@ export interface AppState {
   ui: {
     reportCurrentIndex: number;
     currentAnswerText: string; // Buffer for active question transcript
+    ttsEnabled: boolean;
+    ttsVoice?: string;
+    ttsRate: number;
+    ttsPitch: number;
+    isTtsSpeaking: boolean;
+    isTimerPaused: boolean;
+    isListeningSuspended: boolean;
   };
 
   // Actions
@@ -93,6 +100,12 @@ export interface AppState {
   clearTranscriptBuffer: () => void;
   endSessionNow: () => Promise<void>;
   reset: () => void;
+  setTtsSpeaking: (isSpeaking: boolean) => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
+  suspendListening: () => void;
+  resumeListening: () => void;
+  updateTtsSettings: (settings: { ttsEnabled?: boolean; ttsVoice?: string; ttsRate?: number; ttsPitch?: number }) => void;
 }
 
 const initialState = {
@@ -134,6 +147,13 @@ const initialState = {
   ui: {
     reportCurrentIndex: 0,
     currentAnswerText: '',
+    ttsEnabled: true, // Default ON if supported
+    ttsVoice: undefined,
+    ttsRate: 1.0,
+    ttsPitch: 1.0,
+    isTtsSpeaking: false,
+    isTimerPaused: false,
+    isListeningSuspended: false,
   },
 };
 
@@ -170,6 +190,7 @@ export const useStore = create<AppState>((set, get) => ({
         questions: [],
       },
       ui: {
+        ...initialState.ui,
         reportCurrentIndex: 0,
         currentAnswerText: '',
       },
@@ -518,7 +539,43 @@ export const useStore = create<AppState>((set, get) => ({
       session: { ...initialState.session },
       history: [], // Clear history
       results: null,
-      ui: { reportCurrentIndex: 0, currentAnswerText: '' },
+      ui: { reportCurrentIndex: 0, currentAnswerText: '', ttsEnabled: true, ttsRate: 1.0, ttsPitch: 1.0, isTtsSpeaking: false, isTimerPaused: false, isListeningSuspended: false },
     });
+  },
+
+  setTtsSpeaking: (isSpeaking) => {
+    set((state) => ({
+      ui: { ...state.ui, isTtsSpeaking: isSpeaking },
+    }));
+  },
+
+  pauseTimer: () => {
+    set((state) => ({
+      ui: { ...state.ui, isTimerPaused: true },
+    }));
+  },
+
+  resumeTimer: () => {
+    set((state) => ({
+      ui: { ...state.ui, isTimerPaused: false },
+    }));
+  },
+
+  suspendListening: () => {
+    set((state) => ({
+      ui: { ...state.ui, isListeningSuspended: true },
+    }));
+  },
+
+  resumeListening: () => {
+    set((state) => ({
+      ui: { ...state.ui, isListeningSuspended: false },
+    }));
+  },
+
+  updateTtsSettings: (settings) => {
+    set((state) => ({
+      ui: { ...state.ui, ...settings },
+    }));
   },
 }));

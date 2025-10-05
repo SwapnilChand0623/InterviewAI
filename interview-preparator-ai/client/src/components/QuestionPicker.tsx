@@ -20,7 +20,7 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
+        <h2 className="text-4xl font-black text-gray-900 mb-6">
           Configure Your Mock Interview
         </h2>
 
@@ -29,7 +29,7 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
           <div>
             <label
               htmlFor="role"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-lg font-bold text-black mb-2"
             >
               Select Role & Focus
             </label>
@@ -51,7 +51,7 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
           <div>
             <label
               htmlFor="duration"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-lg font-bold text-black mb-2"
             >
               Answer Duration
             </label>
@@ -70,8 +70,8 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-900">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-900">
               <span className="font-semibold">What to expect:</span> You'll receive a behavioral
               interview question. Answer using the STAR framework while we track your delivery,
               pace, and body language.

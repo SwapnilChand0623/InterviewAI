@@ -8,6 +8,7 @@ import { useStore } from '@/features/state/store';
 import { useCapture } from '@/features/capture/useCapture';
 import { useSpeech } from '@/features/speech/useSpeech';
 import { useFaceMesh } from '@/features/landmarks/useFaceMesh';
+import { useTTS } from '@/features/tts/useTTS';
 import { CameraPreview } from '@/components/CameraPreview';
 import { LandmarkOverlay } from '@/components/LandmarkOverlay';
 import { Timer } from '@/components/Timer';
@@ -19,12 +20,18 @@ export function Session() {
   const { 
     session, 
     settings,
+    ui,
     finalizeAnswerAndScore, 
     goToNextQuestion,
     skipQuestion,
     appendTranscriptChunk,
     clearTranscriptBuffer,
     endSessionNow,
+    setTtsSpeaking,
+    pauseTimer,
+    resumeTimer,
+    suspendListening,
+    resumeListening,
   } = useStore();
   const [isRecording, setIsRecording] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -35,6 +42,7 @@ export function Session() {
   // Hooks
   const [captureState, captureControls] = useCapture();
   const [faceMeshState, faceMeshControls] = useFaceMesh();
+  const tts = useTTS();
   
   // Store handleStop ref to avoid circular dependency
   const handleStopRef = useRef<(() => Promise<void>) | null>(null);
@@ -91,8 +99,12 @@ export function Session() {
     // Clear transcript buffer for new question
     clearTranscriptBuffer();
     speechControls.resetTranscript();
-    speechControls.startListening();
-  }, [speechControls, clearTranscriptBuffer]);
+    
+    // Only start listening if not suspended (TTS might be speaking)
+    if (!ui.isListeningSuspended) {
+      speechControls.startListening();
+    }
+  }, [speechControls, clearTranscriptBuffer, ui.isListeningSuspended]);
 
   const handleStop = useCallback(async () => {
     setIsRecording(false);
@@ -160,6 +172,14 @@ export function Session() {
     // Cancel any pending auto-end detection
     speechControls.cancelAutoEnd();
 
+    // Cancel TTS if speaking
+    if (ui.isTtsSpeaking) {
+      tts.cancel();
+      setTtsSpeaking(false);
+      resumeTimer();
+      resumeListening();
+    }
+
     // If recording, stop speech (but keep camera on)
     if (isRecording) {
       setIsRecording(false);
@@ -174,7 +194,7 @@ export function Session() {
     // Show brief toast
     setShowToast(true);
     setTimeout(() => setShowToast(false), 1000);
-  }, [isRecording, speechControls, skipQuestion]);
+  }, [isRecording, speechControls, skipQuestion, ui.isTtsSpeaking, tts, setTtsSpeaking, resumeTimer, resumeListening]);
 
   const handleCancelAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current) {
@@ -188,6 +208,12 @@ export function Session() {
 
   // Handle session timeout - end entire session when timer expires
   const handleSessionTimeout = useCallback(async () => {
+    // Cancel TTS if speaking
+    if (ui.isTtsSpeaking) {
+      tts.cancel();
+      setTtsSpeaking(false);
+    }
+    
     // Stop speech if running
     if (isRecording) {
       speechControls.cancelAutoEnd();
@@ -197,7 +223,7 @@ export function Session() {
     
     // End the entire session (will finalize current answer + navigate to report)
     await endSessionNow();
-  }, [isRecording, speechControls, endSessionNow]);
+  }, [isRecording, speechControls, endSessionNow, ui.isTtsSpeaking, tts, setTtsSpeaking]);
 
   const handleVideoReady = useCallback((videoElement: HTMLVideoElement) => {
     // Start face tracking when video is ready
@@ -205,6 +231,74 @@ export function Session() {
       faceMeshControls.startTracking(videoElement);
     }
   }, [faceMeshState.isInitialized, faceMeshControls]);
+
+  // TTS: Speak question when it changes
+  useEffect(() => {
+    console.log('[Session] TTS Effect triggered:', {
+      hasQuestion: !!session.question,
+      ttsEnabled: ui.ttsEnabled,
+      ttsSupported: tts.isSupported,
+      questionId: session.question?.id
+    });
+    
+    if (!session.question || !ui.ttsEnabled || !tts.isSupported) {
+      // If TTS is disabled or not supported, make sure timer/listening are not paused
+      if (!ui.ttsEnabled || !tts.isSupported) {
+        resumeTimer();
+        resumeListening();
+      }
+      return;
+    }
+    
+    const questionText = session.question.q;
+    
+    // Small delay to ensure TTS voices are loaded
+    const timeoutId = setTimeout(() => {
+      // Pause timer and suspend listening
+      pauseTimer();
+      suspendListening();
+      
+      tts.speak(
+        questionText,
+        {
+          voiceName: ui.ttsVoice,
+          rate: ui.ttsRate,
+          pitch: ui.ttsPitch,
+        },
+        {
+          onstart: () => {
+            setTtsSpeaking(true);
+          },
+          onend: () => {
+            setTtsSpeaking(false);
+            resumeTimer();
+            resumeListening();
+            
+            // If we were recording, start speech recognition
+            if (isRecording && !ui.isListeningSuspended) {
+              speechControls.startListening();
+            }
+          },
+          onerror: () => {
+            setTtsSpeaking(false);
+            resumeTimer();
+            resumeListening();
+          },
+        }
+      );
+    }, 100); // Small delay for TTS initialization
+
+    // Cleanup: cancel TTS when question changes or component unmounts
+    return () => {
+      clearTimeout(timeoutId);
+      tts.cancel();
+      // Ensure we don't leave things paused
+      setTtsSpeaking(false);
+      resumeTimer();
+      resumeListening();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.question?.id, ui.ttsEnabled, tts.isSupported]);
 
   if (!session.question) {
     return null;
@@ -301,6 +395,7 @@ export function Session() {
               <Timer
                 duration={session.duration}
                 isRunning={isRecording}
+                isPaused={ui.isTimerPaused}
                 onComplete={handleSessionTimeout}
               />
             </div>
@@ -309,10 +404,17 @@ export function Session() {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <RecorderControls
                 isRecording={isRecording}
-                isDisabled={!captureState.isCapturing || isProcessing}
+                isDisabled={!captureState.isCapturing || isProcessing || ui.isTtsSpeaking}
                 onStart={handleStart}
                 onStop={handleStop}
                 onSkip={handleSkip}
+                ttsEnabled={ui.ttsEnabled}
+                ttsVoice={ui.ttsVoice}
+                ttsRate={ui.ttsRate}
+                ttsPitch={ui.ttsPitch}
+                ttsSupported={tts.isSupported}
+                ttsVoices={tts.voices}
+                isTtsSpeaking={ui.isTtsSpeaking}
               />
 
               {isProcessing && (
