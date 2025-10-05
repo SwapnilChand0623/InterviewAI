@@ -44,6 +44,8 @@ export function Report() {
       questionNumber: idx + 1,
       question: q.question,
       status: q.metrics.status,
+      grade: q.grade || 'N/A',
+      overallScore: q.overallScore || 0,
       durationSeconds: Math.round(q.durationMs / 1000),
       wpm: q.metrics.wpm,
       fillerCount: q.metrics.fillerCount,
@@ -133,24 +135,61 @@ export function Report() {
           />
         </div>
 
-        {/* Current Question Title */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            Question {ui.reportCurrentIndex + 1}
-            {currentMetrics.status === 'skipped' && (
-              <span className="ml-3 px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
-                Skipped
-              </span>
+        {/* Current Question Title with Grade */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Question {ui.reportCurrentIndex + 1}
+                {currentMetrics.status === 'skipped' && (
+                  <span className="ml-3 px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full">
+                    Skipped
+                  </span>
+                )}
+              </h2>
+              <p className="text-gray-700">{currentQuestion.question}</p>
+            </div>
+            {/* Individual Question Grade Badge */}
+            {currentMetrics.status !== 'skipped' && currentQuestion.grade && (
+              <div className="ml-6 flex flex-col items-center justify-center min-w-[120px]">
+                <div className={`text-5xl font-bold mb-1 ${
+                  currentQuestion.grade === 'A' ? 'text-green-600' :
+                  currentQuestion.grade === 'B' ? 'text-blue-600' :
+                  currentQuestion.grade === 'C' ? 'text-yellow-600' :
+                  currentQuestion.grade === 'D' ? 'text-orange-600' :
+                  'text-red-600'
+                }`}>
+                  {currentQuestion.grade}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">
+                  {currentQuestion.overallScore}/100
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Question Grade
+                </div>
+              </div>
             )}
-          </h2>
-          <p className="text-gray-700">{currentQuestion.question}</p>
+          </div>
         </div>
 
         {/* Show metrics only if not skipped */}
         {currentMetrics.status !== 'skipped' ? (
           <>
             {/* Key Metrics */}
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
+            <div className="grid md:grid-cols-5 gap-6 mb-8">
+              <MetricCard
+                title="Overall Grade"
+                value={currentQuestion.grade || 'N/A'}
+                subtitle={`${currentQuestion.overallScore || 0}/100 composite`}
+                color={
+                  (currentQuestion.grade === 'A' || currentQuestion.grade === 'B')
+                    ? 'green'
+                    : (currentQuestion.grade === 'C' || currentQuestion.grade === 'D')
+                    ? 'yellow'
+                    : 'red'
+                }
+              />
+
               <MetricCard
                 title="Speaking Pace"
                 value={`${currentMetrics.wpm}`}

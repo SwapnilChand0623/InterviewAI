@@ -10,7 +10,7 @@ import type { AttentionMetrics } from '@/features/analysis/attention';
 import type { RelevanceResult } from '@/features/analysis/relevance';
 import type { SessionResults, QuestionResult } from '@/types/results';
 import { getRandomQuestion } from '@/lib/questions';
-import { computeOverall } from '@/features/analysis/overall';
+import { computeOverall, computeQuestionGrade } from '@/features/analysis/overall';
 
 export interface SessionInfo {
   role: RoleSkill | null;
@@ -64,6 +64,7 @@ export interface AppState {
   results: SessionResults | null;
   ui: {
     reportCurrentIndex: number;
+    currentAnswerText: string; // Buffer for active question transcript
   };
 
   // Actions
@@ -88,6 +89,9 @@ export interface AppState {
   skipQuestion: () => void;
   updateSettings: (settings: Partial<SessionSettings>) => void;
   setReportIndex: (index: number) => void;
+  appendTranscriptChunk: (chunk: string) => void;
+  clearTranscriptBuffer: () => void;
+  endSessionNow: () => Promise<void>;
   reset: () => void;
 }
 
@@ -129,6 +133,7 @@ const initialState = {
   results: null,
   ui: {
     reportCurrentIndex: 0,
+    currentAnswerText: '',
   },
 };
 
@@ -166,6 +171,7 @@ export const useStore = create<AppState>((set, get) => ({
       },
       ui: {
         reportCurrentIndex: 0,
+        currentAnswerText: '',
       },
     });
   },
@@ -245,12 +251,18 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   finalizeAnswerAndScore: async (transcript, duration, headVariance, gazeDrift) => {
-    const { session, results } = get();
+    const { session, results, ui } = get();
     
-    // First compute all metrics
-    await get().computeMetrics(transcript, duration, headVariance, gazeDrift);
+    // Use the buffer as the source of truth for transcript
+    const finalTranscript = ui.currentAnswerText || transcript;
+    
+    // First compute all metrics using the final transcript
+    await get().computeMetrics(finalTranscript, duration, headVariance, gazeDrift);
 
     const { metrics } = get();
+    
+    // Deep clone metrics to avoid shared references
+    const clonedMetrics: SessionMetrics = JSON.parse(JSON.stringify(metrics));
 
     // Add to history (legacy)
     if (session.question) {
@@ -259,29 +271,34 @@ export const useStore = create<AppState>((set, get) => ({
           ...state.history,
           {
             question: session.question!,
-            metrics: { ...metrics },
+            metrics: clonedMetrics,
             timestamp: Date.now(),
           },
         ],
       }));
     }
 
-    // Add to results as QuestionResult
+    // Add to results as QuestionResult with deep-cloned metrics
     if (session.question && results) {
       const questionResult: QuestionResult = {
         id: session.question.id,
         question: session.question.q,
-        transcript,
+        transcript: finalTranscript, // Use buffered transcript
         durationMs: duration * 1000,
         metrics: {
-          wpm: metrics.textMetrics?.wpm || 0,
-          fillerCount: metrics.textMetrics?.fillerCount || 0,
-          attentionScore: metrics.attentionMetrics?.attentionScore || 0,
-          starScores: metrics.starScores || { S: 0, T: 0, A: 0, R: 0 },
-          relevance: metrics.relevance || undefined,
-          status: metrics.status === 'skipped' ? 'skipped' : 'answered',
+          wpm: clonedMetrics.textMetrics?.wpm || 0,
+          fillerCount: clonedMetrics.textMetrics?.fillerCount || 0,
+          attentionScore: clonedMetrics.attentionMetrics?.attentionScore || 0,
+          starScores: clonedMetrics.starScores ? {...clonedMetrics.starScores} : { S: 0, T: 0, A: 0, R: 0 },
+          relevance: clonedMetrics.relevance ? {...clonedMetrics.relevance, matchedKeywords: [...(clonedMetrics.relevance.matchedKeywords || [])], missingKeywords: [...(clonedMetrics.relevance.missingKeywords || [])], reasons: [...(clonedMetrics.relevance.reasons || [])]} : undefined,
+          status: clonedMetrics.status === 'skipped' ? 'skipped' : 'answered',
         },
       };
+
+      // Compute overall grade for this question
+      const { score, grade } = computeQuestionGrade(questionResult);
+      questionResult.overallScore = score;
+      questionResult.grade = grade;
 
       set((state) => ({
         results: state.results
@@ -291,12 +308,18 @@ export const useStore = create<AppState>((set, get) => ({
             }
           : null,
       }));
+      
+      // Clear the transcript buffer after pushing
+      get().clearTranscriptBuffer();
     }
   },
 
   goToNextQuestion: () => {
     const { session, currentQuestionIndex, history, results } = get();
-    if (!session.role) return;
+    if (!session.role || session.status === 'finished') return; // Guard against finished session
+
+    // Clear transcript buffer for next question
+    get().clearTranscriptBuffer();
 
     // Check if we've completed enough questions (e.g., 5 questions)
     const MAX_QUESTIONS = 5;
@@ -396,6 +419,8 @@ export const useStore = create<AppState>((set, get) => ({
           starScores: { S: 0, T: 0, A: 0, R: 0 },
           status: 'skipped',
         },
+        overallScore: 0,
+        grade: 'F',
       };
 
       set((state) => ({
@@ -424,13 +449,76 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
+  appendTranscriptChunk: (chunk) => {
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        currentAnswerText: state.ui.currentAnswerText + chunk,
+      },
+    }));
+  },
+
+  clearTranscriptBuffer: () => {
+    set((state) => ({
+      ui: {
+        ...state.ui,
+        currentAnswerText: '',
+      },
+    }));
+  },
+
+  endSessionNow: async () => {
+    const { session, results, ui, media } = get();
+    
+    // If currently recording/active, finalize the current answer
+    if (session.status === 'active' && session.question && media.isRecording) {
+      const duration = session.startTime ? (Date.now() - session.startTime) / 1000 : 0;
+      const finalTranscript = ui.currentAnswerText;
+      
+      if (finalTranscript.trim().length > 0) {
+        // Use finalizeAnswerAndScore for current question
+        await get().finalizeAnswerAndScore(finalTranscript, duration, 0, 0);
+      }
+    }
+    
+    // Mark remaining questions as timeout
+    // (In a multi-question session, if we had unanswered questions in queue)
+    // For now, just mark session as finished
+    
+    set((state) => ({
+      session: {
+        ...state.session,
+        status: 'finished',
+        endTime: Date.now(),
+      },
+      media: {
+        ...state.media,
+        isRecording: false,
+      },
+    }));
+    
+    // Compute overall grade if we have results
+    if (results && results.questions.length > 0) {
+      const overall = computeOverall(results);
+      set((state) => ({
+        results: state.results
+          ? {
+              ...state.results,
+              overall,
+              endedAt: new Date().toISOString(),
+            }
+          : null,
+      }));
+    }
+  },
+
   reset: () => {
     set({
       ...initialState,
       session: { ...initialState.session },
       history: [], // Clear history
       results: null,
-      ui: { reportCurrentIndex: 0 },
+      ui: { reportCurrentIndex: 0, currentAnswerText: '' },
     });
   },
 }));

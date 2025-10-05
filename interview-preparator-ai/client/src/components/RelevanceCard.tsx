@@ -98,6 +98,7 @@ export function RelevanceCard({ relevance, className = '' }: RelevanceCardProps)
             <h4 className="text-sm font-semibold text-red-700 mb-2">
               ✗ Missing ({relevance.missingKeywords.length})
             </h4>
+            <p className="text-xs text-gray-500 mb-2">Missing terms for this question</p>
             <div className="flex flex-wrap gap-1">
               {relevance.missingKeywords.slice(0, 8).map((keyword, index) => (
                 <span

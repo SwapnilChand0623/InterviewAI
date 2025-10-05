@@ -21,6 +21,8 @@ export type QuestionResult = {
     };
     status?: 'answered' | 'skipped' | 'timeout';
   };
+  overallScore?: number; // Composite score for this question (0-100)
+  grade?: 'A' | 'B' | 'C' | 'D' | 'F'; // Letter grade for this question
 };
 
 export type SessionResults = {

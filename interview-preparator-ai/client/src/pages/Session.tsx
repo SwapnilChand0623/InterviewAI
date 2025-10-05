@@ -22,6 +22,9 @@ export function Session() {
     finalizeAnswerAndScore, 
     goToNextQuestion,
     skipQuestion,
+    appendTranscriptChunk,
+    clearTranscriptBuffer,
+    endSessionNow,
   } = useStore();
   const [isRecording, setIsRecording] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -46,6 +49,7 @@ export function Session() {
   const [speechState, speechControls] = useSpeech({
     continuous: true,
     interimResults: true,
+    onTranscriptUpdate: appendTranscriptChunk, // Send chunks to store buffer
     onAutoEnd: handleAutoEnd,
     minSpeakMs: settings.minSpeakMs,
     silenceMs: settings.silenceMs,
@@ -84,8 +88,11 @@ export function Session() {
     setIsRecording(true);
     setStartTime(Date.now());
     
+    // Clear transcript buffer for new question
+    clearTranscriptBuffer();
+    speechControls.resetTranscript();
     speechControls.startListening();
-  }, [speechControls]);
+  }, [speechControls, clearTranscriptBuffer]);
 
   const handleStop = useCallback(async () => {
     setIsRecording(false);
@@ -101,9 +108,9 @@ export function Session() {
     // Get metrics
     const { headVariance, gazeDrift } = faceMeshControls.getMetrics();
 
-    // Finalize and score (includes relevance)
+    // Finalize and score (will use transcript buffer internally)
     await finalizeAnswerAndScore(
-      speechState.transcript,
+      '', // Empty - store uses ui.currentAnswerText buffer
       duration,
       headVariance,
       gazeDrift
@@ -178,6 +185,19 @@ export function Session() {
     // Navigate to report instead
     navigate('/report');
   }, [navigate]);
+
+  // Handle session timeout - end entire session when timer expires
+  const handleSessionTimeout = useCallback(async () => {
+    // Stop speech if running
+    if (isRecording) {
+      speechControls.cancelAutoEnd();
+      speechControls.stopListening();
+      setIsRecording(false);
+    }
+    
+    // End the entire session (will finalize current answer + navigate to report)
+    await endSessionNow();
+  }, [isRecording, speechControls, endSessionNow]);
 
   const handleVideoReady = useCallback((videoElement: HTMLVideoElement) => {
     // Start face tracking when video is ready
@@ -281,7 +301,7 @@ export function Session() {
               <Timer
                 duration={session.duration}
                 isRunning={isRecording}
-                onComplete={handleStop}
+                onComplete={handleSessionTimeout}
               />
             </div>
 

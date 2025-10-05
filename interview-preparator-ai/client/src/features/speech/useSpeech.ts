@@ -144,34 +144,37 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
-      let finalTranscript = finalTranscriptRef.current;
+      let newFinalChunks = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcriptPiece = result[0].transcript;
 
         if (result.isFinal) {
-          finalTranscript += transcriptPiece + ' ';
+          newFinalChunks += transcriptPiece + ' ';
           lastWordTimeRef.current = Date.now(); // Update on final results
         } else {
           interimTranscript += transcriptPiece;
         }
       }
 
-      finalTranscriptRef.current = finalTranscript;
+      // Update local ref for full text
+      finalTranscriptRef.current += newFinalChunks;
+      const fullFinalTranscript = finalTranscriptRef.current;
 
       setState((prev) => ({
         ...prev,
-        transcript: finalTranscript.trim(),
+        transcript: fullFinalTranscript.trim(),
         interimTranscript: interimTranscript.trim(),
       }));
 
-      if (onTranscriptUpdate) {
-        onTranscriptUpdate(finalTranscript.trim());
+      // Call onTranscriptUpdate with new final chunks (for store buffer)
+      if (onTranscriptUpdate && newFinalChunks) {
+        onTranscriptUpdate(newFinalChunks.trim());
       }
 
       if (onPartialUpdateRef.current) {
-        onPartialUpdateRef.current(finalTranscript.trim() + ' ' + interimTranscript);
+        onPartialUpdateRef.current(fullFinalTranscript.trim() + ' ' + interimTranscript);
       }
 
       // Clear existing timers
@@ -183,7 +186,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       }
 
       // Check for wrap-up phrases
-      const fullText = (finalTranscript + ' ' + interimTranscript).trim();
+      const fullText = (fullFinalTranscript + ' ' + interimTranscript).trim();
       if (detectWrapUpPhrase(fullText)) {
         // Arm wrap-up timer (shorter timeout)
         wrapUpTimerRef.current = window.setTimeout(() => {
@@ -192,11 +195,11 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
           const timeSinceManualAction = now - manualActionTimeRef.current;
           const timeSinceLastAutoEnd = now - lastAutoEndAttemptRef.current;
           
-          // Debounce: only fire if 2.5s since last attempt and 500ms since manual action
+          // Debounce: only fire if 1.5s since last attempt and 500ms since manual action
           if (
             elapsed >= minSpeakMs &&
             timeSinceManualAction >= 500 &&
-            timeSinceLastAutoEnd >= 2500 &&
+            timeSinceLastAutoEnd >= 1500 &&
             onAutoEndRef.current
           ) {
             lastAutoEndAttemptRef.current = now;
@@ -212,12 +215,12 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
           const timeSinceManualAction = now - manualActionTimeRef.current;
           const timeSinceLastAutoEnd = now - lastAutoEndAttemptRef.current;
           
-          // Debounce: only fire if 2.5s since last attempt and 500ms since manual action
+          // Debounce: only fire if 1.5s since last attempt and 500ms since manual action
           if (
             elapsed >= minSpeakMs &&
             timeSinceLastWord >= silenceMs &&
             timeSinceManualAction >= 500 &&
-            timeSinceLastAutoEnd >= 2500 &&
+            timeSinceLastAutoEnd >= 1500 &&
             onAutoEndRef.current
           ) {
             lastAutoEndAttemptRef.current = now;
