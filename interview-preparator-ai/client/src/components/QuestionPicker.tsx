@@ -3,18 +3,19 @@
  */
 
 import { useState } from 'react';
-import { ROLE_SKILL_OPTIONS, getRandomQuestion, type RoleSkill } from '@/lib/questions';
+import { ROLE_SKILL_OPTIONS, type RoleSkill } from '@/lib/questions';
 
 interface QuestionPickerProps {
-  onStart: (roleSkill: RoleSkill, duration: number) => void;
+  onStart: (roleSkill: RoleSkill, duration: number, questionCount: number) => void;
 }
 
 export function QuestionPicker({ onStart }: QuestionPickerProps) {
   const [selectedRole, setSelectedRole] = useState<RoleSkill>('frontend_react');
   const [duration, setDuration] = useState(120); // 2 minutes default
+  const [questionCount, setQuestionCount] = useState(3); // 3 questions default
 
   const handleStart = () => {
-    onStart(selectedRole, duration);
+    onStart(selectedRole, duration, questionCount);
   };
 
   return (
@@ -53,7 +54,7 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
               htmlFor="duration"
               className="block text-sm font-medium text-gray-700 mb-2"
             >
-              Answer Duration
+              Answer Duration (per question)
             </label>
             <select
               id="duration"
@@ -69,12 +70,33 @@ export function QuestionPicker({ onStart }: QuestionPickerProps) {
             </select>
           </div>
 
+          {/* Question Count Selection */}
+          <div>
+            <label
+              htmlFor="questionCount"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Number of Questions
+            </label>
+            <select
+              id="questionCount"
+              value={questionCount}
+              onChange={(e) => setQuestionCount(Number(e.target.value))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value={1}>1 question</option>
+              <option value={3}>3 questions</option>
+              <option value={5}>5 questions</option>
+              <option value={10}>10 questions</option>
+            </select>
+          </div>
+
           {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900">
-              <span className="font-semibold">What to expect:</span> You'll receive a behavioral
-              interview question. Answer using the STAR framework while we track your delivery,
-              pace, and body language.
+              <span className="font-semibold">What to expect:</span> You'll receive {questionCount} behavioral
+              interview question{questionCount > 1 ? 's' : ''}. Answer using the STAR framework while we track your delivery,
+              pace, and body language. You can navigate between questions during your session.
             </p>
           </div>
 

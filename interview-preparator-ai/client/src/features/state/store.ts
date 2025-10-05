@@ -7,14 +7,18 @@ import type { RoleSkill, Question } from '@/lib/questions';
 import type { TextMetrics } from '@/features/analysis/text';
 import type { StarScores } from '@/features/analysis/star';
 import type { AttentionMetrics } from '@/features/analysis/attention';
+import type { SessionAnswer } from '@/lib/sessionStorage';
 
 export interface SessionInfo {
   role: RoleSkill | null;
   skill: string | null;
-  question: Question | null;
-  duration: number; // seconds
+  questions: Question[]; // Array of questions for the session
+  currentQuestionIndex: number;
+  duration: number; // seconds per question
   startTime: number | null;
   endTime: number | null;
+  isPaused: boolean;
+  pausedTime: number | null;
 }
 
 export interface MediaState {
@@ -32,6 +36,9 @@ export interface SessionMetrics {
     headVariance: number;
     gazeDrift: number;
   };
+  // Track all answers in the session
+  sessionAnswers: SessionAnswer[];
+  currentQuestionStartTime: number | null;
 }
 
 export interface AppState {
@@ -41,8 +48,15 @@ export interface AppState {
 
   // Actions
   setSession: (session: Partial<SessionInfo>) => void;
-  startSession: (role: RoleSkill, question: Question, duration: number) => void;
+  startSession: (role: RoleSkill, questions: Question[], duration: number) => void;
   endSession: () => void;
+  
+  // Multi-question support
+  nextQuestion: () => boolean;
+  pauseSession: () => void;
+  resumeSession: () => void;
+  getCurrentQuestion: () => Question | null;
+  saveCurrentAnswer: () => void;
   
   setMediaState: (media: Partial<MediaState>) => void;
   addError: (error: string) => void;
@@ -64,10 +78,13 @@ const initialState = {
   session: {
     role: null,
     skill: null,
-    question: null,
-    duration: 120, // 2 minutes default
+    questions: [],
+    currentQuestionIndex: 0,
+    duration: 120, // 2 minutes default per question
     startTime: null,
     endTime: null,
+    isPaused: false,
+    pausedTime: null,
   },
   media: {
     isRecording: false,
@@ -83,6 +100,8 @@ const initialState = {
       headVariance: 0,
       gazeDrift: 0,
     },
+    sessionAnswers: [],
+    currentQuestionStartTime: null,
   },
 };
 
@@ -95,21 +114,27 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  startSession: (role, question, duration) => {
+  startSession: (role, questions, duration) => {
     set({
       session: {
         role,
         skill: role,
-        question,
+        questions,
+        currentQuestionIndex: 0,
         duration,
         startTime: Date.now(),
         endTime: null,
+        isPaused: false,
+        pausedTime: null,
       },
       media: {
         ...get().media,
         isRecording: true,
       },
-      metrics: initialState.metrics,
+      metrics: {
+        ...initialState.metrics,
+        currentQuestionStartTime: Date.now(),
+      },
     });
   },
 
@@ -122,6 +147,91 @@ export const useStore = create<AppState>((set, get) => ({
       media: {
         ...state.media,
         isRecording: false,
+      },
+    }));
+  },
+
+  getCurrentQuestion: () => {
+    const { session } = get();
+    if (session.questions.length === 0) return null;
+    return session.questions[session.currentQuestionIndex] || null;
+  },
+
+  saveCurrentAnswer: () => {
+    const state = get();
+    const currentQuestion = state.session.questions[state.session.currentQuestionIndex];
+    
+    if (!currentQuestion || !state.metrics.currentQuestionStartTime) return;
+
+    const answer: SessionAnswer = {
+      questionId: currentQuestion.id,
+      question: currentQuestion.q,
+      startTime: state.metrics.currentQuestionStartTime,
+      endTime: Date.now(),
+      transcript: state.metrics.transcript,
+      textMetrics: state.metrics.textMetrics,
+      starScores: state.metrics.starScores,
+      attentionMetrics: state.metrics.attentionMetrics,
+      rawAttention: state.metrics.rawAttention,
+    };
+
+    set((state) => ({
+      metrics: {
+        ...state.metrics,
+        sessionAnswers: [...state.metrics.sessionAnswers, answer],
+      },
+    }));
+  },
+
+  nextQuestion: () => {
+    const state = get();
+    const nextIndex = state.session.currentQuestionIndex + 1;
+    
+    if (nextIndex >= state.session.questions.length) {
+      return false; // No more questions
+    }
+
+    // Save current answer before moving to next
+    get().saveCurrentAnswer();
+
+    set((state) => ({
+      session: {
+        ...state.session,
+        currentQuestionIndex: nextIndex,
+      },
+      metrics: {
+        ...state.metrics,
+        transcript: '',
+        textMetrics: null,
+        starScores: null,
+        attentionMetrics: null,
+        rawAttention: {
+          headVariance: 0,
+          gazeDrift: 0,
+        },
+        currentQuestionStartTime: Date.now(),
+      },
+    }));
+
+    return true;
+  },
+
+  pauseSession: () => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        isPaused: true,
+        pausedTime: Date.now(),
+      },
+    }));
+  },
+
+  resumeSession: () => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        isPaused: false,
+        pausedTime: null,
       },
     }));
   },

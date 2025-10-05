@@ -48,7 +48,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
     error: null,
   });
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<typeof SpeechRecognitionClass | null>(null);
   const finalTranscriptRef = useRef<string>('');
 
   // Initialize recognition
@@ -68,7 +68,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       setState((prev) => ({ ...prev, isListening: false }));
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: any) => {
       let errorMessage = 'Speech recognition error';
       
       if (event.error === 'no-speech') {
@@ -86,7 +86,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       }));
     };
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let finalTranscript = finalTranscriptRef.current;
 

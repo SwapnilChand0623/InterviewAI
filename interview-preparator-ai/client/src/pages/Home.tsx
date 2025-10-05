@@ -5,14 +5,15 @@
 import { useNavigate } from 'react-router-dom';
 import { QuestionPicker } from '@/components/QuestionPicker';
 import { useStore } from '@/features/state/store';
-import { getRandomQuestion, type RoleSkill } from '@/lib/questions';
+import { getSessionQuestions, type RoleSkill } from '@/lib/questions';
+import { getRecentQuestionIds } from '@/lib/sessionStorage';
 import { checkBrowserSupport } from '@/lib/utils';
 
 export function Home() {
   const navigate = useNavigate();
   const startSession = useStore((state) => state.startSession);
 
-  const handleStart = (roleSkill: RoleSkill, duration: number) => {
+  const handleStart = (roleSkill: RoleSkill, duration: number, questionCount: number = 3) => {
     // Check browser support
     const support = checkBrowserSupport();
     
@@ -21,8 +22,18 @@ export function Home() {
       return;
     }
 
-    const question = getRandomQuestion(roleSkill);
-    startSession(roleSkill, question, duration);
+    // Get recent question IDs to avoid repetition
+    const recentQuestionIds = getRecentQuestionIds(20);
+    
+    // Get multiple questions for the session
+    const questions = getSessionQuestions(roleSkill, questionCount, recentQuestionIds);
+    
+    if (questions.length === 0) {
+      alert('No questions available. Please try a different role or clear your history.');
+      return;
+    }
+
+    startSession(roleSkill, questions, duration);
     navigate('/session');
   };
 

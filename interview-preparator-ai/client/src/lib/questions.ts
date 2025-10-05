@@ -1,8 +1,15 @@
 export type QuestionId = string;
 
+export type Difficulty = 'entry' | 'mid' | 'senior';
+export type QuestionCategory = 'behavioral' | 'technical' | 'situational';
+
 export interface Question {
   id: QuestionId;
   q: string;
+  difficulty?: Difficulty;
+  category?: QuestionCategory;
+  tags?: string[];
+  estimatedDuration?: number; // in seconds
 }
 
 export const QUESTIONS = {
@@ -95,4 +102,34 @@ export function getRandomQuestion(roleSkill: RoleSkill): Question {
  */
 export function getQuestions(roleSkill: RoleSkill): Question[] {
   return [...QUESTIONS[roleSkill]];
+}
+
+/**
+ * Get multiple random questions for a session, ensuring no duplicates
+ */
+export function getSessionQuestions(
+  roleSkill: RoleSkill,
+  count: number,
+  excludeIds: Set<string> = new Set()
+): Question[] {
+  const allQuestions = QUESTIONS[roleSkill];
+  const availableQuestions = allQuestions.filter(q => !excludeIds.has(q.id));
+  
+  // If we don't have enough questions, use what we have
+  const actualCount = Math.min(count, availableQuestions.length);
+  
+  // Shuffle and take the first N questions
+  const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, actualCount);
+}
+
+/**
+ * Get the next question for a session, avoiding recent questions
+ */
+export function getNextQuestion(
+  roleSkill: RoleSkill,
+  usedQuestionIds: Set<string>
+): Question | null {
+  const questions = getSessionQuestions(roleSkill, 1, usedQuestionIds);
+  return questions.length > 0 ? questions[0] : null;
 }

@@ -15,9 +15,10 @@ import { RecorderControls } from '@/components/RecorderControls';
 
 export function Session() {
   const navigate = useNavigate();
-  const { session, endSession, computeMetrics } = useStore();
+  const { session, endSession, computeMetrics, getCurrentQuestion, nextQuestion, saveCurrentAnswer } = useStore();
   const [isRecording, setIsRecording] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const currentQuestion = getCurrentQuestion();
 
   // Hooks
   const [captureState, captureControls] = useCapture();
@@ -29,10 +30,10 @@ export function Session() {
 
   // Redirect if no question selected
   useEffect(() => {
-    if (!session.question) {
+    if (!currentQuestion) {
       navigate('/');
     }
-  }, [session.question, navigate]);
+  }, [currentQuestion, navigate]);
 
   // Start capture on mount
   useEffect(() => {
@@ -56,8 +57,6 @@ export function Session() {
     setIsRecording(false);
     
     speechControls.stopListening();
-    faceMeshControls.stopTracking();
-    captureControls.stopCapture();
 
     // Calculate duration
     const duration = startTime ? (Date.now() - startTime) / 1000 : session.duration;
@@ -65,7 +64,7 @@ export function Session() {
     // Get metrics
     const { headVariance, gazeDrift } = faceMeshControls.getMetrics();
 
-    // Compute final metrics
+    // Compute final metrics for current question
     await computeMetrics(
       speechState.transcript,
       duration,
@@ -73,8 +72,39 @@ export function Session() {
       gazeDrift
     );
 
-    endSession();
-    navigate('/report');
+    // Save the current answer
+    saveCurrentAnswer();
+
+    // Check if there are more questions
+    const hasMore = nextQuestion();
+    
+    if (!hasMore) {
+      // No more questions, end session
+      faceMeshControls.stopTracking();
+      captureControls.stopCapture();
+      endSession();
+      navigate('/report');
+    } else {
+      // Reset for next question
+      setStartTime(null);
+      setIsRecording(false);
+    }
+  };
+
+  const handleSkipQuestion = async () => {
+    if (!isRecording) {
+      // If not recording, just move to next question
+      const hasMore = nextQuestion();
+      if (!hasMore) {
+        faceMeshControls.stopTracking();
+        captureControls.stopCapture();
+        endSession();
+        navigate('/report');
+      }
+    } else {
+      // If recording, stop and save first
+      await handleStop();
+    }
   };
 
   const handleVideoReady = (videoElement: HTMLVideoElement) => {
@@ -84,9 +114,12 @@ export function Session() {
     }
   };
 
-  if (!session.question) {
+  if (!currentQuestion) {
     return null;
   }
+
+  const currentQuestionNum = session.currentQuestionIndex + 1;
+  const totalQuestions = session.questions.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,6 +131,9 @@ export function Session() {
           </h1>
           <p className="text-gray-600">
             Role: {session.role?.replace('_', ' ').toUpperCase()}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Question {currentQuestionNum} of {totalQuestions}
           </p>
         </div>
 
@@ -166,11 +202,14 @@ export function Session() {
           <div className="space-y-6">
             {/* Question */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-sm font-medium text-gray-500 mb-2">
-                Your Question
-              </h2>
+              <div className="flex justify-between items-start mb-2">
+                <h2 className="text-sm font-medium text-gray-500">
+                  Question {currentQuestionNum} of {totalQuestions}
+                </h2>
+                <span className="text-xs text-gray-400">ID: {currentQuestion.id}</span>
+              </div>
               <p className="text-xl font-medium text-gray-900">
-                {session.question.q}
+                {currentQuestion.q}
               </p>
             </div>
 
@@ -191,6 +230,16 @@ export function Session() {
                 onStart={handleStart}
                 onStop={handleStop}
               />
+
+              {/* Next Question Button */}
+              {currentQuestionNum < totalQuestions && (
+                <button
+                  onClick={handleSkipQuestion}
+                  className="w-full mt-3 px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                >
+                  {isRecording ? 'Finish & Next Question' : 'Skip to Next Question'}
+                </button>
+              )}
 
               <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-900">

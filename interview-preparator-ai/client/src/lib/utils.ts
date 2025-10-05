@@ -96,9 +96,9 @@ export function checkBrowserSupport(): {
 /**
  * Get SpeechRecognition constructor (handles webkit prefix)
  */
-export function getSpeechRecognition(): typeof SpeechRecognition | null {
+export function getSpeechRecognition(): any {
   if ('SpeechRecognition' in window) {
-    return window.SpeechRecognition;
+    return (window as any).SpeechRecognition;
   }
   if ('webkitSpeechRecognition' in window) {
     return (window as any).webkitSpeechRecognition;
