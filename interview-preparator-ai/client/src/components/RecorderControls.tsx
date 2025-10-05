@@ -3,6 +3,7 @@
  */
 
 import { useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
 
 interface RecorderControlsProps {
   isRecording: boolean;
@@ -54,36 +55,40 @@ export function RecorderControls({
     <div className={`space-y-4 ${className}`}>
       <div className="flex items-center gap-3 flex-wrap">
         {!isRecording ? (
-          <button
+          <Button
             onClick={onStart}
             disabled={isDisabled}
-            className="px-8 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            variant="primary"
+            size="lg"
             aria-label="Start recording (Space)"
           >
             Start Recording
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             onClick={onStop}
-            className="px-8 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            variant="primary"
+            size="lg"
+            className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 focus:ring-red-500"
             aria-label="Stop recording (Space)"
           >
             Stop Recording
-          </button>
+          </Button>
         )}
 
-        <button
+        <Button
           onClick={onSkip}
-          className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+          variant="outline"
+          size="lg"
           aria-label="Skip to next question (N)"
         >
           {isRecording ? 'Skip (N)' : 'Next (N)'}
-        </button>
+        </Button>
 
         {isRecording && (
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
               Recording...
             </span>
           </div>
@@ -91,7 +96,7 @@ export function RecorderControls({
       </div>
 
       {/* Keyboard shortcuts hint */}
-      <div className="text-xs text-gray-500">
+      <div className="text-xs text-gray-500 dark:text-slate-400">
         <span className="font-semibold">Shortcuts:</span> Space = Start/Stop, N = Skip/Next
       </div>
     </div>

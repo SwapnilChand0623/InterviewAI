@@ -2,6 +2,8 @@
  * Metric display card component
  */
 
+import { cn } from '@/lib/utils';
+
 interface MetricCardProps {
   title: string;
   value: string | number;
@@ -12,11 +14,11 @@ interface MetricCardProps {
 }
 
 const colorClasses = {
-  blue: 'bg-blue-50 border-blue-200 text-blue-900',
-  green: 'bg-green-50 border-green-200 text-green-900',
-  yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-  red: 'bg-red-50 border-red-200 text-red-900',
-  gray: 'bg-gray-50 border-gray-200 text-gray-900',
+  blue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100',
+  green: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100',
+  yellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-100',
+  red: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100',
+  gray: 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100',
 };
 
 export function MetricCard({
@@ -29,7 +31,7 @@ export function MetricCard({
 }: MetricCardProps) {
   return (
     <div
-      className={`rounded-lg border-2 p-6 ${colorClasses[color]} ${className}`}
+      className={cn('rounded-2xl border-2 p-6 transition-all duration-200', colorClasses[color], className)}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
