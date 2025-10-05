@@ -53,6 +53,7 @@ export interface QuestionHistory {
   question: Question;
   metrics: SessionMetrics;
   timestamp: number;
+  transcript: string; // Dedicated transcript for this question
 }
 
 export interface AppState {
@@ -66,6 +67,8 @@ export interface AppState {
   ui: {
     reportCurrentIndex: number;
   };
+  currentQuestionTranscript: string; // Live transcript for current question
+  questionTranscripts: Record<string, string>; // Transcripts by question ID
 
   // Actions
   setSession: (session: Partial<SessionInfo>) => void;
@@ -90,6 +93,11 @@ export interface AppState {
   updateSettings: (settings: Partial<SessionSettings>) => void;
   setReportIndex: (index: number) => void;
   reset: () => void;
+  setCurrentTranscript: (transcript: string) => void;
+  clearCurrentTranscript: () => void;
+  saveQuestionTranscript: (questionId: string, transcript: string) => void;
+  getQuestionTranscript: (questionId: string) => string;
+  loadQuestionTranscript: (questionId: string) => void;
 }
 
 const initialState = {
@@ -132,6 +140,8 @@ const initialState = {
   ui: {
     reportCurrentIndex: 0,
   },
+  currentQuestionTranscript: '',
+  questionTranscripts: {},
 };
 
 export const useStore = create<AppState>((set, get) => ({
@@ -206,15 +216,46 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
+  setCurrentTranscript: (transcript: string) => {
+    set({ currentQuestionTranscript: transcript });
+  },
+
+  clearCurrentTranscript: () => {
+    set({ currentQuestionTranscript: '' });
+  },
+
+  saveQuestionTranscript: (questionId: string, transcript: string) => {
+    set((state) => ({
+      questionTranscripts: {
+        ...state.questionTranscripts,
+        [questionId]: transcript,
+      },
+    }));
+  },
+
+  getQuestionTranscript: (questionId: string) => {
+    const { questionTranscripts } = get();
+    return questionTranscripts[questionId] || '';
+  },
+
+  loadQuestionTranscript: (questionId: string) => {
+    const transcript = get().getQuestionTranscript(questionId);
+    set({ currentQuestionTranscript: transcript });
+  },
+
   computeMetrics: async (transcript, duration, headVariance, gazeDrift) => {
+    // Use the current question's isolated transcript
+    const { currentQuestionTranscript } = get();
+    const isolatedTranscript = currentQuestionTranscript || transcript;
+
     // Dynamic imports to avoid circular dependencies
     const { analyzeText } = await import('@/features/analysis/text');
     const { analyzeSTAR } = await import('@/features/analysis/star');
     const { analyzeAttention } = await import('@/features/analysis/attention');
     const { scoreRelevance } = await import('@/features/analysis/relevance');
 
-    const textMetrics = analyzeText(transcript, duration);
-    const starAnalysis = analyzeSTAR(transcript);
+    const textMetrics = analyzeText(isolatedTranscript, duration);
+    const starAnalysis = analyzeSTAR(isolatedTranscript);
     const attentionMetrics = analyzeAttention(headVariance, gazeDrift);
     
     // Compute relevance if we have role/skill/question
@@ -222,7 +263,7 @@ export const useStore = create<AppState>((set, get) => ({
     let relevance: RelevanceResult | null = null;
     if (session.role && session.skill && session.question) {
       relevance = await scoreRelevance({
-        transcript,
+        transcript: isolatedTranscript,
         role: session.role,
         skill: session.skill,
         question: session.question.q,
@@ -232,7 +273,7 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       metrics: {
         ...state.metrics,
-        transcript,
+        transcript: isolatedTranscript, // Store isolated transcript
         textMetrics,
         starScores: starAnalysis.scores,
         attentionMetrics,
@@ -247,14 +288,19 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   finalizeAnswerAndScore: async (transcript, duration, headVariance, gazeDrift) => {
-    const { session, results } = get();
+    const { session, results, currentQuestionTranscript } = get();
     
-    // First compute all metrics
-    await get().computeMetrics(transcript, duration, headVariance, gazeDrift);
+    // Save current question's transcript
+    if (session.question && currentQuestionTranscript) {
+      get().saveQuestionTranscript(session.question.id, currentQuestionTranscript);
+    }
+    
+    // First compute all metrics using isolated transcript
+    await get().computeMetrics(currentQuestionTranscript || transcript, duration, headVariance, gazeDrift);
 
     const { metrics } = get();
 
-    // Add to history (legacy)
+    // Add to history (legacy) - use isolated transcript
     if (session.question) {
       set((state) => ({
         history: [
@@ -263,17 +309,18 @@ export const useStore = create<AppState>((set, get) => ({
             question: session.question!,
             metrics: { ...metrics },
             timestamp: Date.now(),
+            transcript: currentQuestionTranscript || transcript, // Store isolated transcript
           },
         ],
       }));
     }
 
-    // Add to results as QuestionResult
+    // Add to results as QuestionResult - use isolated transcript
     if (session.question && results) {
       const questionResult: QuestionResult = {
         id: session.question.id,
         question: session.question.q,
-        transcript,
+        transcript: currentQuestionTranscript || transcript, // Use isolated transcript
         durationMs: duration * 1000,
         metrics: {
           wpm: metrics.textMetrics?.wpm || 0,
@@ -297,8 +344,13 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   goToNextQuestion: () => {
-    const { session, currentQuestionIndex, history, results } = get();
+    const { session, currentQuestionIndex, history, results, currentQuestionTranscript } = get();
     if (!session.role) return;
+
+    // Save current question's transcript before moving to next
+    if (session.question && currentQuestionTranscript) {
+      get().saveQuestionTranscript(session.question.id, currentQuestionTranscript);
+    }
 
     // Check if we've completed enough questions (e.g., 5 questions)
     const MAX_QUESTIONS = 5;
@@ -349,15 +401,21 @@ export const useStore = create<AppState>((set, get) => ({
         status: 'in_progress',
       },
       currentQuestionIndex: currentQuestionIndex + 1,
+      currentQuestionTranscript: '', // Clear transcript for new question
     }));
   },
 
   skipQuestion: () => {
-    const { session, results } = get();
+    const { session, results, currentQuestionTranscript } = get();
     
+    // Save current transcript (even if skipping)
+    if (session.question && currentQuestionTranscript) {
+      get().saveQuestionTranscript(session.question.id, currentQuestionTranscript);
+    }
+
     // Mark current as skipped (minimal data)
     const skippedMetrics: SessionMetrics = {
-      transcript: '',
+      transcript: currentQuestionTranscript, // Use current question's transcript
       textMetrics: null,
       starScores: null,
       attentionMetrics: null,
@@ -379,6 +437,7 @@ export const useStore = create<AppState>((set, get) => ({
             question: session.question!,
             metrics: skippedMetrics,
             timestamp: Date.now(),
+            transcript: currentQuestionTranscript, // Store question-specific transcript
           },
         ],
       }));
@@ -389,7 +448,7 @@ export const useStore = create<AppState>((set, get) => ({
       const skippedResult: QuestionResult = {
         id: session.question.id,
         question: session.question.q,
-        transcript: '',
+        transcript: currentQuestionTranscript, // Use current question's transcript
         durationMs: 0,
         metrics: {
           wpm: 0,

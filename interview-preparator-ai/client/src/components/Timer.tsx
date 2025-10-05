@@ -14,6 +14,7 @@ interface TimerProps {
 
 export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
   const [remaining, setRemaining] = useState(duration);
+  const [hasCompleted, setHasCompleted] = useState(false);
   const onTickRef = useRef(onTick);
   const onCompleteRef = useRef(onComplete);
 
@@ -25,10 +26,11 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
 
   useEffect(() => {
     setRemaining(duration);
+    setHasCompleted(false);
   }, [duration]);
 
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning || hasCompleted) return;
 
     const interval = setInterval(() => {
       setRemaining((prev) => {
@@ -38,7 +40,8 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
           onTickRef.current(next);
         }
 
-        if (next <= 0) {
+        if (next <= 0 && !hasCompleted) {
+          setHasCompleted(true);
           if (onCompleteRef.current) {
             onCompleteRef.current();
           }
@@ -50,10 +53,11 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, hasCompleted]);
 
   const percentage = (remaining / duration) * 100;
   const isLowTime = remaining <= 30;
+  const isTimeUp = remaining <= 0;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -79,19 +83,23 @@ export function Timer({ duration, isRunning, onTick, onComplete }: TimerProps) {
             fill="none"
             strokeDasharray={`${2 * Math.PI * 56}`}
             strokeDashoffset={`${2 * Math.PI * 56 * (1 - percentage / 100)}`}
-            className={`transition-all ${isLowTime ? 'text-red-500' : 'text-primary-500'}`}
+            className={`transition-all ${
+              isTimeUp ? 'text-orange-500' : isLowTime ? 'text-red-500' : 'text-primary-500'
+            }`}
             strokeLinecap="round"
           />
         </svg>
         {/* Time display */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-3xl font-bold ${isLowTime ? 'text-red-500' : 'text-gray-900'}`}>
+          <span className={`text-3xl font-bold ${
+            isTimeUp ? 'text-orange-500' : isLowTime ? 'text-red-500' : 'text-gray-900'
+          }`}>
             {formatTime(remaining)}
           </span>
         </div>
       </div>
       <p className="text-sm text-gray-500">
-        {isRunning ? 'Recording...' : 'Ready'}
+        {isTimeUp ? 'Time Up!' : isRunning ? 'Recording...' : 'Ready'}
       </p>
     </div>
   );

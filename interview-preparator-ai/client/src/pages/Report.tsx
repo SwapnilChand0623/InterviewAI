@@ -14,7 +14,7 @@ import { getTextSuggestions, ratePace, countWords } from '@/features/analysis/te
 import { getOverallStarScore } from '@/features/analysis/star';
 import { getAttentionSuggestions } from '@/features/analysis/attention';
 import { downloadJSON, downloadCSV } from '@/lib/utils';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 
 export function Report() {
   const navigate = useNavigate();
@@ -37,28 +37,28 @@ export function Report() {
     downloadJSON(results, `interview-session-${Date.now()}.json`);
   };
 
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = useCallback(() => {
     if (!results || results.questions.length === 0) return;
 
     const data = results.questions.map((q, idx) => ({
-      questionNumber: idx + 1,
-      question: q.question,
-      status: q.metrics.status,
-      durationSeconds: Math.round(q.durationMs / 1000),
-      wpm: q.metrics.wpm,
-      fillerCount: q.metrics.fillerCount,
-      attentionScore: q.metrics.attentionScore,
-      relevanceScore: q.metrics.relevance?.score || 0,
-      relevanceVerdict: q.metrics.relevance?.verdict || 'n/a',
-      starS: q.metrics.starScores.S,
-      starT: q.metrics.starScores.T,
-      starA: q.metrics.starScores.A,
-      starR: q.metrics.starScores.R,
-      overallStarScore: getOverallStarScore(q.metrics.starScores),
+      Question: idx + 1,
+      'Question Text': q.question,
+      'Answer Transcript': q.transcript, // Use question-specific transcript
+      'Duration (seconds)': (q.durationMs / 1000).toFixed(1),
+      'Words Per Minute': q.metrics.wpm,
+      'Filler Words': q.metrics.fillerCount,
+      'Attention Score': q.metrics.attentionScore,
+      'STAR - Situation': q.metrics.starScores.S,
+      'STAR - Task': q.metrics.starScores.T,
+      'STAR - Action': q.metrics.starScores.A,
+      'STAR - Result': q.metrics.starScores.R,
+      'Relevance Score': q.metrics.relevance?.score || 'N/A',
+      'Relevance Verdict': q.metrics.relevance?.verdict || 'N/A',
+      Status: q.metrics.status,
     }));
 
     downloadCSV(data, `interview-session-${Date.now()}.csv`);
-  };
+  }, [results]);
 
   if (!results || results.questions.length === 0) {
     return null;
@@ -68,9 +68,12 @@ export function Report() {
   const currentQuestion = results.questions[ui.reportCurrentIndex];
   const currentMetrics = currentQuestion.metrics;
 
+  // Use current question's transcript, not the session transcript
+  const currentTranscript = currentQuestion?.transcript || '';
+
   // Compute derived values for suggestions
   const durationSeconds = currentQuestion.durationMs / 1000;
-  const wordCount = countWords(currentQuestion.transcript);
+  const wordCount = countWords(currentTranscript);
   const fillerRate = durationSeconds > 0 ? (currentMetrics.fillerCount / durationSeconds) * 60 : 0;
   const paceRating = ratePace(currentMetrics.wpm);
   
@@ -221,16 +224,33 @@ export function Report() {
               {/* Transcript */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Transcript
+                  Your Response
+                  {currentQuestion && (
+                    <span className="text-sm text-gray-500 ml-2">
+                      (Question {ui.reportCurrentIndex + 1}: {currentQuestion.id})
+                    </span>
+                  )}
                 </h3>
-                {currentQuestion.transcript ? (
-                  <div className="text-sm text-gray-700 max-h-64 overflow-y-auto">
-                    {currentQuestion.transcript}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 italic">
-                    No transcript available.
+                <div className="bg-gray-50 rounded p-4 max-h-60 overflow-y-auto">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {currentTranscript || (
+                      <span className="text-gray-400 italic">
+                        No transcript available for this question.
+                      </span>
+                    )}
                   </p>
+                </div>
+                
+                {/* Transcript Stats */}
+                {currentTranscript && (
+                  <div className="mt-3 flex justify-between text-xs text-gray-500">
+                    <span>
+                      Words: {currentTranscript.split(/\s+/).filter(w => w).length}
+                    </span>
+                    <span>
+                      Characters: {currentTranscript.length}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

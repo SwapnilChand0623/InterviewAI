@@ -29,6 +29,8 @@ interface UseSpeechOptions {
   onPartialUpdate?: (text: string) => void;
   minSpeakMs?: number; // Minimum speech duration before silence can trigger end (default: 8000)
   silenceMs?: number;   // Silence duration to trigger auto-end (default: 3200)
+  externalTranscript?: string; // Allow external transcript injection
+  onExternalTranscriptUpdate?: (transcript: string) => void; // External update callback
 }
 
 /**
@@ -69,13 +71,15 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
     onPartialUpdate,
     minSpeakMs = 8000,
     silenceMs = 3200,
+    externalTranscript = '',
+    onExternalTranscriptUpdate,
   } = options;
 
   const SpeechRecognitionClass = getSpeechRecognition();
   const isSupported = !!SpeechRecognitionClass;
 
   const [state, setState] = useState<SpeechState>({
-    transcript: '',
+    transcript: externalTranscript,
     interimTranscript: '',
     isListening: false,
     isSupported,
@@ -92,6 +96,12 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
   const onPartialUpdateRef = useRef(onPartialUpdate);
   const lastAutoEndAttemptRef = useRef<number>(0);
   const manualActionTimeRef = useRef<number>(0);
+
+  // Keep external transcript in sync
+  useEffect(() => {
+    setState(prev => ({ ...prev, transcript: externalTranscript }));
+    finalTranscriptRef.current = externalTranscript;
+  }, [externalTranscript]);
 
   // Keep refs up to date
   useEffect(() => {
@@ -144,34 +154,41 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
-      let finalTranscript = finalTranscriptRef.current;
+      let newFinalTranscript = '';
 
+      // Process only new results (from current session)
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcriptPiece = result[0].transcript;
 
         if (result.isFinal) {
-          finalTranscript += transcriptPiece + ' ';
-          lastWordTimeRef.current = Date.now(); // Update on final results
+          newFinalTranscript += transcriptPiece + ' ';
+          lastWordTimeRef.current = Date.now();
         } else {
           interimTranscript += transcriptPiece;
         }
       }
 
-      finalTranscriptRef.current = finalTranscript;
-
+      // Combine external transcript with new session transcript
+      const combinedTranscript = (externalTranscript + ' ' + newFinalTranscript).trim();
+      
       setState((prev) => ({
         ...prev,
-        transcript: finalTranscript.trim(),
+        transcript: combinedTranscript,
         interimTranscript: interimTranscript.trim(),
       }));
 
+      // Update external transcript store
+      if (onExternalTranscriptUpdate) {
+        onExternalTranscriptUpdate(combinedTranscript);
+      }
+
       if (onTranscriptUpdate) {
-        onTranscriptUpdate(finalTranscript.trim());
+        onTranscriptUpdate(combinedTranscript);
       }
 
       if (onPartialUpdateRef.current) {
-        onPartialUpdateRef.current(finalTranscript.trim() + ' ' + interimTranscript);
+        onPartialUpdateRef.current(combinedTranscript + ' ' + interimTranscript);
       }
 
       // Clear existing timers
@@ -183,7 +200,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       }
 
       // Check for wrap-up phrases
-      const fullText = (finalTranscript + ' ' + interimTranscript).trim();
+      const fullText = (combinedTranscript + ' ' + interimTranscript).trim();
       if (detectWrapUpPhrase(fullText)) {
         // Arm wrap-up timer (shorter timeout)
         wrapUpTimerRef.current = window.setTimeout(() => {
@@ -240,7 +257,7 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
         clearTimeout(wrapUpTimerRef.current);
       }
     };
-  }, [SpeechRecognitionClass, continuous, interimResults, language, onTranscriptUpdate, minSpeakMs, silenceMs]);
+  }, [SpeechRecognitionClass, continuous, interimResults, language, onTranscriptUpdate, minSpeakMs, silenceMs, externalTranscript, onExternalTranscriptUpdate]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current) {
@@ -274,9 +291,14 @@ export function useSpeech(options: UseSpeechOptions = {}): [SpeechState, SpeechC
       transcript: '',
       interimTranscript: '',
     }));
-    // Mark manual action
+    
+    // Clear external transcript too
+    if (onExternalTranscriptUpdate) {
+      onExternalTranscriptUpdate('');
+    }
+    
     manualActionTimeRef.current = Date.now();
-  }, []);
+  }, [onExternalTranscriptUpdate]);
   
   // Expose method to cancel auto-end (for skip/manual actions)
   const cancelAutoEnd = useCallback(() => {
