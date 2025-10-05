@@ -7,6 +7,7 @@ import { useStore } from '@/features/state/store';
 import { MetricCard } from '@/components/MetricCard';
 import { StarBars } from '@/components/StarBars';
 import { FeedbackPanel } from '@/components/FeedbackPanel';
+import { RelevanceCard } from '@/components/RelevanceCard';
 import { getTextSuggestions } from '@/features/analysis/text';
 import { getOverallStarScore } from '@/features/analysis/star';
 import { getAttentionSuggestions } from '@/features/analysis/attention';
@@ -51,6 +52,8 @@ export function Report() {
         wpm: metrics.textMetrics.wpm,
         fillerCount: metrics.textMetrics.fillerCount,
         attentionScore: metrics.attentionMetrics.attentionScore,
+        relevanceScore: metrics.relevance?.score || 0,
+        relevanceVerdict: metrics.relevance?.verdict || 'unknown',
         starS: metrics.starScores.S,
         starT: metrics.starScores.T,
         starA: metrics.starScores.A,
@@ -66,6 +69,7 @@ export function Report() {
   const allSuggestions = [
     ...(metrics.textMetrics ? getTextSuggestions(metrics.textMetrics) : []),
     ...(metrics.attentionMetrics ? getAttentionSuggestions(metrics.attentionMetrics) : []),
+    ...(metrics.relevance?.reasons || []),
   ];
 
   if (!metrics.textMetrics || !metrics.starScores || !metrics.attentionMetrics) {
@@ -147,6 +151,13 @@ export function Report() {
             }
           />
         </div>
+
+        {/* Relevance Analysis */}
+        {metrics.relevance && (
+          <div className="mb-8">
+            <RelevanceCard relevance={metrics.relevance} />
+          </div>
+        )}
 
         {/* Detailed Analysis */}
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
