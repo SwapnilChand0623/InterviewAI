@@ -288,6 +288,13 @@ export function Report() {
           </button>
 
           <button
+            onClick={() => navigate('/history')}
+            className="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          >
+            View History
+          </button>
+
+          <button
             onClick={handleDownloadJSON}
             className="px-8 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
           >

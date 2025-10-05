@@ -44,9 +44,20 @@ export function Home() {
       <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Interview Preparator AI
-          </h1>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1"></div>
+            <h1 className="text-5xl font-bold text-gray-900 flex-1">
+              Interview Preparator AI
+            </h1>
+            <div className="flex-1 flex justify-end">
+              <button
+                onClick={() => navigate('/history')}
+                className="px-4 py-2 text-primary-600 hover:text-primary-700 font-medium flex items-center gap-2"
+              >
+                📊 History
+              </button>
+            </div>
+          </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Practice behavioral interviews with real-time feedback on your delivery,
             body language, and answer structure.
