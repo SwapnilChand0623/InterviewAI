@@ -13,6 +13,7 @@ import { LandmarkOverlay } from '@/components/LandmarkOverlay';
 import { Timer } from '@/components/Timer';
 import { RecorderControls } from '@/components/RecorderControls';
 import { Toast } from '@/components/Toast';
+import { QuestionReader } from '@/components/QuestionReader';
 
 export function Session() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export function Session() {
     finalizeAnswerAndScore, 
     goToNextQuestion,
     skipQuestion,
+    toggleLandmarkVisibility,
   } = useStore();
   const [isRecording, setIsRecording] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -79,6 +81,18 @@ export function Session() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-start recording when new question loads
+  useEffect(() => {
+    if (session.question && !isRecording && !isProcessing && captureState.isCapturing) {
+      // Small delay to ensure everything is ready
+      const autoStartTimer = setTimeout(() => {
+        handleStart();
+      }, 500);
+
+      return () => clearTimeout(autoStartTimer);
+    }
+  }, [session.question, isRecording, isProcessing, captureState.isCapturing]);
 
   const handleStart = useCallback(() => {
     setIsRecording(true);
@@ -179,6 +193,17 @@ export function Session() {
     navigate('/report');
   }, [navigate]);
 
+  const handleTimerComplete = useCallback(() => {
+    // When timer completes, stop recording and go to report
+    if (isRecording) {
+      handleStop();
+    }
+    // Navigate to report after a brief delay to allow processing
+    setTimeout(() => {
+      navigate('/report');
+    }, 1000);
+  }, [isRecording, handleStop, navigate]);
+
   const handleVideoReady = useCallback((videoElement: HTMLVideoElement) => {
     // Start face tracking when video is ready
     if (faceMeshState.isInitialized) {
@@ -195,9 +220,24 @@ export function Session() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Mock Interview Session
-          </h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Mock Interview Session
+            </h1>
+            {/* Landmark Toggle Button */}
+            <button
+              onClick={toggleLandmarkVisibility}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                settings.showLandmarks
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+              title={settings.showLandmarks ? 'Hide face tracking dots' : 'Show face tracking dots'}
+            >
+              <span className="w-2 h-2 rounded-full bg-current"></span>
+              {settings.showLandmarks ? 'Hide Tracking' : 'Show Tracking'}
+            </button>
+          </div>
           <p className="text-gray-600">
             Role: {session.role?.replace('_', ' ').toUpperCase()}
           </p>
@@ -219,14 +259,15 @@ export function Session() {
                   className="w-full h-full"
                 />
                 
-                {faceMeshState.isTracking && (
+                {/* Commented out to remove green dots - uncomment to show face tracking */}
+                {/* {faceMeshState.isTracking && settings.showLandmarks && (
                   <LandmarkOverlay
                     landmarks={faceMeshState.landmarks}
                     width={640}
                     height={480}
                     className="w-full h-full"
                   />
-                )}
+                )} */}
               </div>
 
               {captureState.error && (
@@ -266,14 +307,20 @@ export function Session() {
 
           {/* Right Column: Question & Controls */}
           <div className="space-y-6">
-            {/* Question */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-sm font-medium text-gray-500 mb-2">
-                Your Question
-              </h2>
-              <p className="text-xl font-medium text-gray-900">
-                {session.question.q}
-              </p>
+            {/* Question with Text-to-Speech */}
+            <div className="bg-white rounded-lg shadow-lg p-6 relative overflow-hidden">
+              {/* Subtle background glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 opacity-50"></div>
+              <div className="relative">
+                <h2 className="text-sm font-medium text-gray-500 mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                  Your Question
+                </h2>
+                <QuestionReader
+                  question={session.question.q}
+                  autoPlay={true}
+                />
+              </div>
             </div>
 
             {/* Timer */}
@@ -281,7 +328,7 @@ export function Session() {
               <Timer
                 duration={session.duration}
                 isRunning={isRecording}
-                onComplete={handleStop}
+                onComplete={handleTimerComplete}
               />
             </div>
 

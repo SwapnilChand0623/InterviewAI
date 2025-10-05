@@ -2,14 +2,16 @@
  * Canvas overlay for rendering face mesh landmarks
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import type { Results } from '@mediapipe/face_mesh';
+import { useSessionStore } from '@/features/state/store';
 
 interface LandmarkOverlayProps {
   landmarks: Results | null;
   width?: number;
   height?: number;
   className?: string;
+  showLandmarks?: boolean;
 }
 
 export function LandmarkOverlay({
@@ -17,10 +19,13 @@ export function LandmarkOverlay({
   width = 640,
   height = 480,
   className = '',
+  showLandmarks: propShowLandmarks,
 }: LandmarkOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { sessionSettings } = useSessionStore();
+  const showLandmarks = propShowLandmarks ?? sessionSettings.showLandmarks;
 
-  useEffect(() => {
+  const drawLandmarks = useCallback(() => {
     if (!canvasRef.current || !landmarks) return;
 
     const canvas = canvasRef.current;
@@ -30,13 +35,11 @@ export function LandmarkOverlay({
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Draw face mesh if available
-    if (landmarks.multiFaceLandmarks && landmarks.multiFaceLandmarks.length > 0) {
-      const face = landmarks.multiFaceLandmarks[0];
-
+    // Only draw landmarks if visibility is enabled
+    if (showLandmarks) {
       // Draw landmarks
       ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-      for (const landmark of face) {
+      for (const landmark of landmarks.multiFaceLandmarks[0]) {
         const x = landmark.x * width;
         const y = landmark.y * height;
         ctx.beginPath();
@@ -57,9 +60,9 @@ export function LandmarkOverlay({
 
       ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
       for (const idx of keyPoints) {
-        if (face[idx]) {
-          const x = face[idx].x * width;
-          const y = face[idx].y * height;
+        if (landmarks.multiFaceLandmarks[0][idx]) {
+          const x = landmarks.multiFaceLandmarks[0][idx].x * width;
+          const y = landmarks.multiFaceLandmarks[0][idx].y * height;
           ctx.beginPath();
           ctx.arc(x, y, 3, 0, 2 * Math.PI);
           ctx.fill();
@@ -67,9 +70,9 @@ export function LandmarkOverlay({
       }
 
       // Draw head pose indicator (simple line from nose)
-      const nose = face[1];
-      const leftEye = face[33];
-      const rightEye = face[263];
+      const nose = landmarks.multiFaceLandmarks[0][1];
+      const leftEye = landmarks.multiFaceLandmarks[0][33];
+      const rightEye = landmarks.multiFaceLandmarks[0][263];
 
       if (nose && leftEye && rightEye) {
         const eyeCenterX = ((leftEye.x + rightEye.x) / 2) * width;
@@ -86,7 +89,11 @@ export function LandmarkOverlay({
         ctx.stroke();
       }
     }
-  }, [landmarks, width, height]);
+  }, [landmarks, showLandmarks, width, height]);
+
+  useEffect(() => {
+    drawLandmarks();
+  }, [drawLandmarks]);
 
   return (
     <canvas

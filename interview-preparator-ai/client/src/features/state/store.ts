@@ -46,6 +46,7 @@ export interface SessionSettings {
   silenceMs: number;
   minSpeakMs: number;
   autoAdvanceDelayMs: number;
+  showLandmarks: boolean;
 }
 
 export interface QuestionHistory {
@@ -123,6 +124,7 @@ const initialState = {
     silenceMs: 3200,
     minSpeakMs: 8000,
     autoAdvanceDelayMs: 2500,
+    showLandmarks: false,
   },
   history: [],
   currentQuestionIndex: 0,
